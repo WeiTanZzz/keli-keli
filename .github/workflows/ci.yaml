@@ -22,10 +22,7 @@ jobs:
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
 
-            - run: pnpm install
-
-            - name: Lockfile unchanged
-              run: git diff --exit-code pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
 
             - name: Format & lint
               working-directory: desktop
