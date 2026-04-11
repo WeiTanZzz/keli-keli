@@ -24,6 +24,7 @@ chrono = "0.4"
 toml = "0.8"
 dirs = "5"
 tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"

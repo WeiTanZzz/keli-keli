@@ -26,9 +26,18 @@
       }
     ]
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_YOUR_PUBKEY",
+      "endpoints": [
+        "https://github.com/WeiTanZzz/keli-keli/releases/latest/download/latest.json"
+      ],
+      "dialog": false
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": ["app", "dmg", "updater"],
     "icon": [
       "icons/icon.png"
     ],
