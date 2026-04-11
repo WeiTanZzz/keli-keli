@@ -80,3 +80,31 @@ When enabled, connects to `ws_url` and sends:
 ```
 
 Reconnects automatically on disconnect.
+
+## Security & Privacy
+
+### Privacy
+
+keli-keli only counts keystrokes — it does **not** record which keys are pressed, log any text input, or transmit keystroke content anywhere. The hook intercepts key events solely to increment a counter.
+
+That said, any app with Input Monitoring permission has the *technical capability* to read keystrokes. If you have concerns:
+
+- Review the source code before running.
+- If you downloaded a pre-built binary, verify its integrity (check the SHA256 hash against the release page) before installing.
+- Grant Input Monitoring permission only to apps you trust.
+
+### "KeliKeli is damaged and can't be opened"
+
+macOS Gatekeeper may block unsigned or unnotarized apps with this message. To bypass it:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/KeliKeli.app
+```
+
+This removes the quarantine flag that macOS sets on downloaded files. Only run this if you downloaded the app from a trusted source and have verified its integrity.
+
+### General tips
+
+- Always download from the [official GitHub Releases](../../releases) page and check that the file hash matches what is listed there.
+- Keep macOS up to date so that system-level security mitigations are current.
+- If you no longer use the app, revoke Input Monitoring permission in **System Settings → Privacy & Security → Input Monitoring**.
