@@ -18,6 +18,8 @@ body.indicator {
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-user-drag: none;
+    cursor: grab;
 }
 
 @keyframes floatUp {

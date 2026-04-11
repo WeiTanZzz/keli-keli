@@ -31,7 +31,10 @@ export default function App() {
                 paddingBottom: 6,
             }}
             onMouseDown={(e) => {
-                if (e.button === 0) getCurrentWindow().startDragging()
+                if (e.button === 0) {
+                    e.preventDefault()
+                    getCurrentWindow().startDragging()
+                }
             }}
         >
             <span
