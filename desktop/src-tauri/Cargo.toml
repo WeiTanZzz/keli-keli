@@ -1,0 +1,37 @@
+[package]
+name = "keli-keli"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight keystroke counting tool"
+
+[lib]
+name = "keli_keli_lib"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "keli-keli"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+toml = "0.8"
+dirs = "5"
+tauri-plugin-autostart = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+
+[profile.release]
+lto = true
+opt-level = "z"
+strip = true
