@@ -6,50 +6,58 @@ on:
             version:
                 description: "Release version (e.g. v1.0.0)"
                 required: true
+                type: string
 
 concurrency:
     group: release-${{ github.event.inputs.version }}
     cancel-in-progress: false
 
-jobs:
-    release:
-        strategy:
-            matrix:
-                include:
-                    - os: macos-latest
-                      target: aarch64-apple-darwin
-                    - os: macos-13
-                      target: x86_64-apple-darwin
+permissions:
+    contents: write
 
-        runs-on: ${{ matrix.os }}
+jobs:
+    create_tag:
+        name: Create tag
+        runs-on: ubuntu-latest
 
         steps:
             - uses: actions/checkout@v6
               with:
                   fetch-depth: 0
 
-            - name: Ensure on main
+            - name: Create tag if missing
               run: |
-                  if [ "${{ github.ref_name }}" != "main" ]; then
-                    echo "❌ Release must run on main branch"
-                    exit 1
+                  TAG="${{ github.event.inputs.version }}"
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    echo "Tag $TAG already exists, skip creating."
+                  else
+                    git tag "$TAG"
+                    git push origin "$TAG"
                   fi
 
-            - name: Create tag
-              run: |
-                  git tag ${{ github.event.inputs.version }}
-                  git push origin ${{ github.event.inputs.version }}
+    release:
+        name: release (${{ matrix.os }}, ${{ matrix.target }})
+        needs: create_tag
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: macos-latest
+                      target: aarch64-apple-darwin
 
+        runs-on: ${{ matrix.os }}
+
+        steps:
+            - uses: actions/checkout@v6
             - uses: pnpm/action-setup@v6
               with:
                   version: 10.33.0
-                  run_install: false
-
             - uses: actions/setup-node@v6
               with:
                   node-version: 24
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
 
             - uses: dtolnay/rust-toolchain@stable
               with:
@@ -59,11 +67,7 @@ jobs:
               with:
                   workspaces: desktop/src-tauri
 
-            - name: Install dependencies
-              working-directory: desktop
-              run: pnpm install --frozen-lockfile
-
-            - uses: tauri-apps/tauri-action@v1
+            - uses: tauri-apps/tauri-action@v0.6.2
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
