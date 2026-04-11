@@ -5,6 +5,10 @@ import App from "./App"
 import Settings from "./Settings"
 import "./index.css"
 
+if (!import.meta.env.DEV) {
+    document.addEventListener("contextmenu", (e) => e.preventDefault())
+}
+
 const label = getCurrentWindow().label
 if (label === "main") document.body.classList.add("indicator")
 
