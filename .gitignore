@@ -1,0 +1,22 @@
+CLAUDE.md
+
+# Rust
+**/target/
+
+# Node
+**/node_modules/
+desktop/dist/
+
+# Turbo
+.turbo/
+
+# Tauri
+desktop/src-tauri/gen/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Build artifacts
+*.dmg
+rw.*.*.dmg
