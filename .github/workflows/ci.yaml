@@ -56,3 +56,14 @@ jobs:
 
             - name: Build check
               run: cargo check
+
+    ci-check:
+        name: ci-check
+        runs-on: ubuntu-latest
+        needs:
+            - frontend
+            - rust
+        if: ${{ success() }}
+        steps:
+            - name: All checks passed
+              run: echo "All checks passed"
