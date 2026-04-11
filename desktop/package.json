@@ -8,7 +8,8 @@
         "build": "tauri build",
         "format": "biome format --write src",
         "lint": "biome lint --write src",
-        "check": "biome check --write src"
+        "check": "biome check --write src",
+        "tauri": "tauri"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.11",

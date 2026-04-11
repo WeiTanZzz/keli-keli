@@ -21,7 +21,6 @@ jobs:
                   node-version: 24
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
-
             - run: pnpm install --frozen-lockfile
 
             - name: Format & lint
