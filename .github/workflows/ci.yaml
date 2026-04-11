@@ -57,7 +57,7 @@ jobs:
             - name: Build check
               run: cargo check
 
-    ci:
+    ci-check:
         name: ci-check
         runs-on: ubuntu-latest
         needs:
