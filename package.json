@@ -2,7 +2,7 @@
     "name": "keli-keli",
     "version": "0.1.0",
     "private": true,
-    "packageManager": "pnpm@10.20.0",
+    "packageManager": "pnpm@10.33.0",
     "scripts": {
         "dev": "turbo dev",
         "build": "turbo build",
