@@ -1,0 +1,58 @@
+name: CI
+
+on:
+    pull_request:
+        types:
+            - opened
+            - synchronize
+            - reopened
+
+jobs:
+    frontend:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: 10.33.0
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+                  cache-dependency-path: pnpm-lock.yaml
+
+            - run: pnpm install --frozen-lockfile
+
+            - name: Format & lint
+              working-directory: desktop
+              run: pnpm biome ci src
+
+            - name: Type check
+              working-directory: desktop
+              run: pnpm tsc
+
+    rust:
+        runs-on: macos-latest
+        defaults:
+            run:
+                working-directory: desktop/src-tauri
+
+        steps:
+            - uses: actions/checkout@v6
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt, clippy
+
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: desktop/src-tauri
+
+            - name: Format check
+              run: cargo fmt --check
+
+            - name: Clippy
+              run: cargo clippy -- -D warnings
+
+            - name: Build check
+              run: cargo check

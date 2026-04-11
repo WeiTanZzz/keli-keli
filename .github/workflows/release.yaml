@@ -1,0 +1,77 @@
+name: Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Release version (e.g. v1.0.0)"
+                required: true
+
+concurrency:
+    group: release-${{ github.event.inputs.version }}
+    cancel-in-progress: false
+
+jobs:
+    release:
+        strategy:
+            matrix:
+                include:
+                    - os: macos-latest
+                      target: aarch64-apple-darwin
+                    - os: macos-13
+                      target: x86_64-apple-darwin
+
+        runs-on: ${{ matrix.os }}
+
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+
+            - name: Ensure on main
+              run: |
+                  if [ "${{ github.ref_name }}" != "main" ]; then
+                    echo "❌ Release must run on main branch"
+                    exit 1
+                  fi
+
+            - name: Create tag
+              run: |
+                  git tag ${{ github.event.inputs.version }}
+                  git push origin ${{ github.event.inputs.version }}
+
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: 10.33.0
+                  run_install: false
+
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+                  cache-dependency-path: pnpm-lock.yaml
+
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: ${{ matrix.target }}
+
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: desktop/src-tauri
+
+            - name: Install dependencies
+              working-directory: desktop
+              run: pnpm install --frozen-lockfile
+
+            - uses: tauri-apps/tauri-action@v1
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+              with:
+                  projectPath: desktop
+                  tagName: ${{ github.event.inputs.version }}
+                  releaseName: KeliKeli ${{ github.event.inputs.version }}
+                  releaseDraft: false
+                  includeUpdaterJson: true
+                  args: --target ${{ matrix.target }}

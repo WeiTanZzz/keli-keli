@@ -39,7 +39,12 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 place: u32,
                 options: u32,
                 events_of_interest: u64,
-                callback: unsafe extern "C" fn(CGEventTapProxy, u32, CGEventRef, *mut c_void) -> CGEventRef,
+                callback: unsafe extern "C" fn(
+                    CGEventTapProxy,
+                    u32,
+                    CGEventRef,
+                    *mut c_void,
+                ) -> CGEventRef,
                 user_info: *mut c_void,
             ) -> CFMachPortRef;
             fn CFMachPortCreateRunLoopSource(
@@ -48,7 +53,11 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 order: CFIndex,
             ) -> CFRunLoopSourceRef;
             fn CFRunLoopGetCurrent() -> CFRunLoopRef;
-            fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
+            fn CFRunLoopAddSource(
+                rl: CFRunLoopRef,
+                source: CFRunLoopSourceRef,
+                mode: CFRunLoopMode,
+            );
             fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
             fn CFRunLoopRun();
             static kCFRunLoopCommonModes: CFRunLoopMode;
@@ -80,7 +89,8 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
 
         loop {
             unsafe {
-                let tap = CGEventTapCreate(0, 0, 1, KEY_DOWN_MASK, tap_callback, std::ptr::null_mut());
+                let tap =
+                    CGEventTapCreate(0, 0, 1, KEY_DOWN_MASK, tap_callback, std::ptr::null_mut());
                 if tap.is_null() {
                     eprintln!("[keli] CGEventTapCreate failed — System Settings → Privacy & Security → Input Monitoring");
                     std::thread::sleep(std::time::Duration::from_secs(5));
