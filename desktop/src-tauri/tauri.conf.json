@@ -1,48 +1,46 @@
 {
-  "productName": "KeliKeli",
-  "version": "0.1.0",
-  "identifier": "com.weitanzzz.keli-keli",
-  "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "vite",
-    "beforeBuildCommand": "vite build"
-  },
-  "app": {
-    "macOSPrivateApi": true,
-    "withGlobalTauri": false,
-    "windows": [
-      {
-        "label": "main",
-        "title": "KeliKeli",
-        "width": 72,
-        "height": 80,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": true,
-        "acceptFirstMouse": true
-      }
-    ]
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "REPLACE_WITH_YOUR_PUBKEY",
-      "endpoints": [
-        "https://github.com/WeiTanZzz/keli-keli/releases/latest/download/latest.json"
-      ],
-      "dialog": false
+    "productName": "KeliKeli",
+    "version": "0.1.0",
+    "identifier": "com.weitanzzz.keli-keli",
+    "build": {
+        "frontendDist": "../dist",
+        "devUrl": "http://localhost:5173",
+        "beforeDevCommand": "vite",
+        "beforeBuildCommand": "vite build"
+    },
+    "app": {
+        "macOSPrivateApi": true,
+        "withGlobalTauri": false,
+        "windows": [
+            {
+                "label": "main",
+                "title": "KeliKeli",
+                "width": 72,
+                "height": 80,
+                "resizable": false,
+                "decorations": false,
+                "transparent": true,
+                "alwaysOnTop": true,
+                "visible": true,
+                "acceptFirstMouse": true
+            }
+        ]
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNFMjFBMzE1NkE3MjRCRDYKUldUV1MzSnFGYU1oUGczb1RwNHd6Q25lMkc1NitoT1hpOUxsSDkyclM5ZUNUaFNNbDVLWjRpWW0K",
+            "endpoints": [
+                "https://github.com/WeiTanZzz/keli-keli/releases/latest/download/latest.json"
+            ],
+            "dialog": false
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": ["app", "dmg", "updater"],
+        "icon": ["icons/icon.png"],
+        "macOS": {
+            "minimumSystemVersion": "12.0"
+        }
     }
-  },
-  "bundle": {
-    "active": true,
-    "targets": ["app", "dmg", "updater"],
-    "icon": [
-      "icons/icon.png"
-    ],
-    "macOS": {
-      "minimumSystemVersion": "12.0"
-    }
-  }
 }
