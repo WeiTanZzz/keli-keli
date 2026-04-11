@@ -125,6 +125,8 @@ pub fn run() {
             get_autostart, set_autostart
         ])
         .setup(move |app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             setup_tray(app.handle())?;
             if let Some(win) = app.get_webview_window("main") {
                 #[cfg(target_os = "macos")]
