@@ -2,6 +2,9 @@
 
 A macOS menu bar app that counts keystrokes in real time.
 
+![keli-keli](https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f)
+
+
 ## Features
 
 - Floating keyboard indicator on screen
