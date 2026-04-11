@@ -21,17 +21,15 @@ fn data_path() -> PathBuf {
 impl Storage {
     pub fn load() -> Self {
         let path = data_path();
-        let data = if path.exists() {
-            fs::read_to_string(&path)
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default()
-        } else {
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            StatsData::default()
-        };
+        let data = fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| {
+                if let Some(parent) = path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                StatsData::default()
+            });
         Storage(Arc::new(Mutex::new(data)))
     }
 
@@ -51,11 +49,11 @@ impl Storage {
 
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
         let data = self.0.lock().unwrap();
-        let mut entries: Vec<(String, u64)> = data.counts.clone().into_iter().collect();
-        entries.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut entries: Vec<_> = data.counts.iter().collect();
+        entries.sort_by(|a, b| b.0.cmp(a.0));
         entries.truncate(days);
         entries.reverse();
-        entries
+        entries.into_iter().map(|(k, v)| (k.clone(), *v)).collect()
     }
 
     pub fn save(&self) {

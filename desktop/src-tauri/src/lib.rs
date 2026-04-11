@@ -99,16 +99,16 @@ pub fn run() {
     let idle_ms = cfg.websocket.typing_idle_ms;
     let flush_secs = cfg.flush_interval_secs;
 
-    let ws_url = if cfg.websocket.enabled && !cfg.websocket.ws_url.is_empty() {
-        Some(cfg.websocket.ws_url.clone())
-    } else {
-        None
-    };
-    let sync_cfg = if cfg.sync.enabled && !cfg.sync.api_url.is_empty() {
-        Some(cfg.sync.clone())
-    } else {
-        None
-    };
+    let ws_url = cfg
+        .websocket
+        .enabled
+        .then_some(cfg.websocket.ws_url.clone())
+        .filter(|u| !u.is_empty());
+    let sync_cfg = cfg
+        .sync
+        .enabled
+        .then_some(cfg.sync.clone())
+        .filter(|s| !s.api_url.is_empty());
 
     let (key_tx, key_rx) = mpsc::unbounded_channel::<KeyEvent>();
     hook::start(key_tx);
@@ -122,8 +122,11 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(cfg)))
         .manage(storage.clone())
         .invoke_handler(tauri::generate_handler![
-            get_config, save_config, get_stats,
-            get_autostart, set_autostart
+            get_config,
+            save_config,
+            get_stats,
+            get_autostart,
+            set_autostart
         ])
         .setup(move |app| {
             #[cfg(target_os = "macos")]

@@ -1,56 +1,54 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+    push:
+        tags:
+            - "v*"
 
 jobs:
-  release:
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: macos-13
-            target: x86_64-apple-darwin
+    release:
+        strategy:
+            matrix:
+                include:
+                    - os: macos-latest
+                      target: aarch64-apple-darwin
+                    - os: macos-13
+                      target: x86_64-apple-darwin
 
-    runs-on: ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: 10.20.0
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+                  cache-dependency-path: ./pnpm-lock.yaml
 
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: ${{ matrix.target }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: desktop/pnpm-lock.yaml
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: desktop/src-tauri
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+            - name: Install dependencies
+              working-directory: desktop
+              run: pnpm install --frozen-lockfile
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri
-
-      - name: Install dependencies
-        working-directory: desktop
-        run: pnpm install
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: KeliKeli ${{ github.ref_name }}
-          releaseDraft: true
-          includeUpdaterJson: true
-          args: --target ${{ matrix.target }}
+            - uses: tauri-apps/tauri-action@v1
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+              with:
+                  projectPath: desktop
+                  tagName: ${{ github.ref_name }}
+                  releaseName: KeliKeli ${{ github.ref_name }}
+                  releaseDraft: true
+                  includeUpdaterJson: true
+                  args: --target ${{ matrix.target }}
