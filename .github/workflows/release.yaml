@@ -7,17 +7,24 @@ on:
                 description: "Release version (e.g. v1.0.0)"
                 required: true
                 type: string
+    push:
+        tags:
+            - "v*.*.*"
 
 concurrency:
-    group: release-${{ github.event.inputs.version }}
+    group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
     cancel-in-progress: false
 
 permissions:
     contents: write
 
+env:
+    RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+
 jobs:
     create_tag:
         name: Create tag
+        if: github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
 
         steps:
@@ -27,7 +34,7 @@ jobs:
 
             - name: Create tag if missing
               run: |
-                  TAG="${{ github.event.inputs.version }}"
+                  TAG="${RELEASE_VERSION}"
                   if git rev-parse "$TAG" >/dev/null 2>&1; then
                     echo "Tag $TAG already exists, skip creating."
                   else
@@ -37,7 +44,8 @@ jobs:
 
     release:
         name: release (${{ matrix.os }}, ${{ matrix.target }})
-        needs: create_tag
+        needs: [create_tag]
+        if: always() && (needs.create_tag.result == 'success' || needs.create_tag.result == 'skipped')
         strategy:
             fail-fast: false
             matrix:
@@ -49,14 +57,17 @@ jobs:
 
         steps:
             - uses: actions/checkout@v6
+
             - uses: pnpm/action-setup@v6
               with:
                   version: 10.33.0
+
             - uses: actions/setup-node@v6
               with:
                   node-version: 24
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
+
             - run: pnpm install --frozen-lockfile
 
             - uses: dtolnay/rust-toolchain@stable
@@ -74,8 +85,8 @@ jobs:
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
               with:
                   projectPath: desktop
-                  tagName: ${{ github.event.inputs.version }}
-                  releaseName: KeliKeli ${{ github.event.inputs.version }}
+                  tagName: ${{ env.RELEASE_VERSION }}
+                  releaseName: KeliKeli ${{ env.RELEASE_VERSION }}
                   releaseDraft: false
                   includeUpdaterJson: true
                   args: --target ${{ matrix.target }}
