@@ -246,7 +246,12 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                         win.set_focus().ok();
                     }
                     if let Ok(item) = app.state::<ToggleItem>().0.lock() {
-                        item.set_text(if visible { "Show Indicator" } else { "Hide Indicator" }).ok();
+                        item.set_text(if visible {
+                            "Show Indicator"
+                        } else {
+                            "Hide Indicator"
+                        })
+                        .ok();
                     }
                 }
             }
