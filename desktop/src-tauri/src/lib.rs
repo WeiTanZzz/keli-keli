@@ -15,6 +15,7 @@ use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant};
 
 struct CountItem(Mutex<MenuItem<Wry>>);
+struct ToggleItem(Mutex<MenuItem<Wry>>);
 
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
@@ -89,6 +90,12 @@ fn make_webview_transparent(win: &tauri::WebviewWindow) {
                 let _: () = msg_send![view, setOpaque: NO];
                 let _: () = msg_send![view, setBackgroundColor: clear];
             }
+            // Level 10000: high enough to appear above full-screen apps on all Spaces
+            let _: () = msg_send![ns_window, setLevel: 10000i64];
+            // Read existing behavior first, then OR in our flags to preserve Tauri's defaults
+            // CanJoinAllSpaces (1) | Stationary (16) | FullScreenAuxiliary (256)
+            let existing: usize = msg_send![ns_window, collectionBehavior];
+            let _: () = msg_send![ns_window, setCollectionBehavior: existing | 1 | 16 | 256];
         }
     }
 }
@@ -129,8 +136,41 @@ pub fn run() {
             set_autostart
         ])
         .setup(move |app| {
+            // Set activation policy FIRST, before any window is created.
+            // This is equivalent to LSUIElement=true in Info.plist and is required
+            // for NSWindowCollectionBehaviorCanJoinAllSpaces to work in full-screen spaces.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // Now create the window programmatically so NSWindow inherits the correct policy.
+            let win = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("KeliKeli")
+            .inner_size(72.0, 80.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .accept_first_mouse(true)
+            .visible(true)
+            .build()?;
+
+            #[cfg(target_os = "macos")]
+            make_webview_transparent(&win);
+
+            if let Ok(Some(monitor)) = win.primary_monitor() {
+                let screen = monitor.size();
+                let win_size = win.outer_size().unwrap_or_default();
+                win.set_position(tauri::PhysicalPosition {
+                    x: (screen.width as i32) - (win_size.width as i32) - 24,
+                    y: (screen.height as f32 * 0.8) as i32,
+                })
+                .ok();
+            }
+
             setup_tray(app.handle())?;
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -143,19 +183,6 @@ pub fn run() {
                     }
                 }
             });
-            if let Some(win) = app.get_webview_window("main") {
-                #[cfg(target_os = "macos")]
-                make_webview_transparent(&win);
-                if let Ok(Some(monitor)) = win.primary_monitor() {
-                    let screen = monitor.size();
-                    let win_size = win.outer_size().unwrap_or_default();
-                    win.set_position(tauri::PhysicalPosition {
-                        x: (screen.width as i32) - (win_size.width as i32) - 24,
-                        y: (screen.height as f32 * 0.8) as i32,
-                    })
-                    .ok();
-                }
-            }
             let ws_tx = ws_url.map(|url| {
                 let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
                 tauri::async_runtime::spawn(ws_loop(rx, url));
@@ -201,6 +228,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     app.manage(CountItem(Mutex::new(count)));
+    app.manage(ToggleItem(Mutex::new(toggle)));
 
     TrayIconBuilder::with_id("main-tray")
         .icon(build_tray_icon())
@@ -210,11 +238,15 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "toggle" => {
                 if let Some(win) = app.get_webview_window("main") {
-                    if win.is_visible().unwrap_or(false) {
+                    let visible = win.is_visible().unwrap_or(false);
+                    if visible {
                         win.hide().ok();
                     } else {
                         win.show().ok();
                         win.set_focus().ok();
+                    }
+                    if let Ok(item) = app.state::<ToggleItem>().0.lock() {
+                        item.set_text(if visible { "Show Indicator" } else { "Hide Indicator" }).ok();
                     }
                 }
             }

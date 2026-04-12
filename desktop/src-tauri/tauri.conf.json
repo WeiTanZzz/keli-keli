@@ -11,20 +11,7 @@
     "app": {
         "macOSPrivateApi": true,
         "withGlobalTauri": false,
-        "windows": [
-            {
-                "label": "main",
-                "title": "KeliKeli",
-                "width": 72,
-                "height": 80,
-                "resizable": false,
-                "decorations": false,
-                "transparent": true,
-                "alwaysOnTop": true,
-                "visible": true,
-                "acceptFirstMouse": true
-            }
-        ]
+        "windows": []
     },
     "plugins": {
         "updater": {
@@ -40,7 +27,8 @@
         "targets": ["dmg"],
         "icon": ["icons/icon.png"],
         "macOS": {
-            "minimumSystemVersion": "12.0"
+            "minimumSystemVersion": "12.0",
+            "infoPlist": "Info.plist"
         }
     }
 }
