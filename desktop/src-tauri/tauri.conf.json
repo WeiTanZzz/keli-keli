@@ -25,7 +25,7 @@
     "bundle": {
         "active": true,
         "createUpdaterArtifacts": true,
-        "targets": ["dmg"],
+        "targets": ["dmg", "app"],
         "icon": ["icons/icon.png"],
         "macOS": {
             "minimumSystemVersion": "12.0",
