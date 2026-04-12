@@ -187,17 +187,54 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     )
 }
 
+type UpdateState =
+    | { status: "checking" }
+    | { status: "latest"; version: string }
+    | { status: "available"; current: string; latest: string }
+    | { status: "installing" }
+    | { status: "error"; message: string }
+
 export default function Settings() {
     const [cfg, setCfg] = useState<Config | null>(null)
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
     const [saved, setSaved] = useState(false)
+    const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
 
     useEffect(() => {
         invoke<Config>("get_config").then(setCfg)
         invoke<boolean>("get_autostart").then(setAutostart)
         invoke<DayStat[]>("get_stats", { days: 14 }).then(setStats)
+        invoke<{ current: string; latest: string | null; available: boolean }>(
+            "check_update",
+        )
+            .then((info) => {
+                if (info.available && info.latest) {
+                    setUpdate({
+                        status: "available",
+                        current: info.current,
+                        latest: info.latest,
+                    })
+                } else {
+                    setUpdate({ status: "latest", version: info.current })
+                }
+            })
+            .catch(() =>
+                setUpdate({
+                    status: "error",
+                    message: "Could not reach update server",
+                }),
+            )
     }, [])
+
+    const handleInstall = async () => {
+        setUpdate({ status: "installing" })
+        try {
+            await invoke("install_update")
+        } catch (e) {
+            setUpdate({ status: "error", message: String(e) })
+        }
+    }
 
     const handleAutostart = (v: boolean) => {
         setAutostart(v)
@@ -335,6 +372,62 @@ export default function Settings() {
                         </Row>
                     </>
                 )}
+            </Section>
+
+            {/* About */}
+            <Section title="About">
+                <Row label="Version">
+                    {update.status === "checking" && (
+                        <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                            Checking…
+                        </span>
+                    )}
+                    {update.status === "latest" && (
+                        <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                            v{update.version} · Up to date
+                        </span>
+                    )}
+                    {update.status === "available" && (
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                                v{update.current}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={handleInstall}
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: "#fff",
+                                    background: "#6366f1",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    padding: "3px 10px",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                }}
+                            >
+                                Update to v{update.latest}
+                            </button>
+                        </div>
+                    )}
+                    {update.status === "installing" && (
+                        <span style={{ fontSize: 12, color: "#6366f1" }}>
+                            Installing, will restart shortly…
+                        </span>
+                    )}
+                    {update.status === "error" && (
+                        <span style={{ fontSize: 12, color: "#ef4444" }}>
+                            {update.message}
+                        </span>
+                    )}
+                </Row>
             </Section>
 
             <button

@@ -28,6 +28,13 @@ struct DayStat {
     count: u64,
 }
 
+#[derive(serde::Serialize)]
+struct UpdateStatus {
+    current: String,
+    latest: Option<String>,
+    available: bool,
+}
+
 enum WsEvent {
     Keystroke(u64),
     TypingStart,
@@ -52,6 +59,46 @@ fn get_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<DaySta
         .into_iter()
         .map(|(date, count)| DayStat { date, count })
         .collect()
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let current = app.package_info().version.to_string();
+    let updater = app
+        .updater()
+        .map_err(|_| "Could not reach update server".to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateStatus {
+            current,
+            latest: Some(update.version.clone()),
+            available: true,
+        }),
+        Ok(None) => Ok(UpdateStatus {
+            current,
+            latest: None,
+            available: false,
+        }),
+        Err(_) => Err("Could not reach update server".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app
+        .updater()
+        .map_err(|_| "Update failed, please try again later".to_string())?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|_| "Could not reach update server".to_string())?
+        .ok_or("Already on the latest version".to_string())?;
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|_| "Download failed, please try again later".to_string())?;
+    app.restart();
 }
 
 #[tauri::command]
@@ -133,7 +180,9 @@ pub fn run() {
             save_config,
             get_stats,
             get_autostart,
-            set_autostart
+            set_autostart,
+            check_update,
+            install_update
         ])
         .setup(move |app| {
             // Set activation policy FIRST, before any window is created.
@@ -172,17 +221,6 @@ pub fn run() {
             }
 
             setup_tray(app.handle())?;
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                use tauri_plugin_updater::UpdaterExt;
-                if let Ok(updater) = handle.updater() {
-                    if let Ok(Some(update)) = updater.check().await {
-                        if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
-                            handle.restart();
-                        }
-                    }
-                }
-            });
             let ws_tx = ws_url.map(|url| {
                 let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
                 tauri::async_runtime::spawn(ws_loop(rx, url));
@@ -274,7 +312,7 @@ fn open_settings_window(app: &AppHandle) {
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("KeliKeli Settings")
-        .inner_size(380.0, 540.0)
+        .inner_size(380.0, 580.0)
         .resizable(false)
         .center()
         .build()
