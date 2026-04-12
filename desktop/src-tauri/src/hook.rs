@@ -92,7 +92,14 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 let tap =
                     CGEventTapCreate(0, 0, 1, KEY_DOWN_MASK, tap_callback, std::ptr::null_mut());
                 if tap.is_null() {
-                    eprintln!("[keli] CGEventTapCreate failed — System Settings → Privacy & Security → Input Monitoring");
+                    static PROMPTED: std::sync::atomic::AtomicBool =
+                        std::sync::atomic::AtomicBool::new(false);
+                    if !PROMPTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                        std::process::Command::new("open")
+                            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+                            .spawn()
+                            .ok();
+                    }
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     continue;
                 }
