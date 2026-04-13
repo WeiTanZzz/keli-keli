@@ -56,6 +56,9 @@ jobs:
             - name: Build check
               run: cargo check
 
+            - name: Test
+              run: cargo test --lib
+
     ci-check:
         name: ci-check
         runs-on: ubuntu-latest
