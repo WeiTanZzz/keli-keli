@@ -434,8 +434,12 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                                 WsEvent::Keystroke(count) => {
                                     serde_json::json!({ "type": "keystroke", "count": count })
                                 }
-                                WsEvent::TypingStart => serde_json::json!({ "type": "typing_start" }),
-                                WsEvent::TypingStop => serde_json::json!({ "type": "typing_stop" }),
+                                WsEvent::TypingStart => {
+                                    serde_json::json!({ "type": "typing_start" })
+                                }
+                                WsEvent::TypingStop => {
+                                    serde_json::json!({ "type": "typing_stop" })
+                                }
                             };
                             if write.send(Message::Text(payload.to_string())).await.is_err() {
                                 pending = Some(payload);
