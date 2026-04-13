@@ -419,7 +419,11 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
         // Retry the message that failed on the previous connection before
         // reading new events from the channel.
         if let Some(payload) = pending.take() {
-            if write.send(Message::Text(payload.to_string())).await.is_err() {
+            if write
+                .send(Message::Text(payload.to_string()))
+                .await
+                .is_err()
+            {
                 pending = Some(payload);
                 continue;
             }
@@ -441,7 +445,11 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                                     serde_json::json!({ "type": "typing_stop" })
                                 }
                             };
-                            if write.send(Message::Text(payload.to_string())).await.is_err() {
+                            if write
+                                .send(Message::Text(payload.to_string()))
+                                .await
+                                .is_err()
+                            {
                                 pending = Some(payload);
                                 break;
                             }
@@ -587,13 +595,10 @@ mod tests {
         let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
         tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
 
-        let (stream, _) = tokio::time::timeout(
-            Duration::from_secs(2),
-            listener.accept(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
         let mut ws = accept_async(stream).await.unwrap();
 
         tx.send(WsEvent::Keystroke(42)).unwrap();
@@ -627,11 +632,17 @@ mod tests {
         tx.send(WsEvent::TypingStop).unwrap();
 
         let start_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
-            .await.unwrap().unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(parse_ws_msg(&start_msg)["type"], "typing_start");
 
         let stop_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
-            .await.unwrap().unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(parse_ws_msg(&stop_msg)["type"], "typing_stop");
     }
 
@@ -645,13 +656,18 @@ mod tests {
 
         // First connection
         let (s1, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
-            .await.unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap();
         let mut ws1 = accept_async(s1).await.unwrap();
 
         // Send and receive event 1
         tx.send(WsEvent::Keystroke(1)).unwrap();
         let msg1 = tokio::time::timeout(Duration::from_secs(2), ws1.next())
-            .await.unwrap().unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(parse_ws_msg(&msg1)["count"], 1);
 
         // Drop the server side. ws_loop's select! is also polling read.next(),
@@ -662,18 +678,26 @@ mod tests {
         // once ws_loop has actually reconnected, so any events we send after
         // this point are guaranteed to land on the new connection.
         let (s2, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
-            .await.unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
         tx.send(WsEvent::Keystroke(2)).unwrap();
         tx.send(WsEvent::Keystroke(3)).unwrap();
 
         let msg2 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
-            .await.unwrap().unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(parse_ws_msg(&msg2)["count"], 2);
 
         let msg3 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
-            .await.unwrap().unwrap().unwrap();
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(parse_ws_msg(&msg3)["count"], 3);
     }
 }
