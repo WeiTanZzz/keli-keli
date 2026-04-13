@@ -1,17 +1,11 @@
 import { invoke } from "@tauri-apps/api/core"
+import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import {
-    BarChart2,
-    Globe,
-    Info,
-    Settings2,
-    Zap,
-} from "lucide-react"
 
 interface Config {
     flush_interval_secs: number
@@ -129,11 +123,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
 
-function StatisticsSection({
-    stats,
-}: {
-    stats: DayStat[]
-}) {
+function StatisticsSection({ stats }: { stats: DayStat[] }) {
     const today = new Date().toISOString().slice(0, 10)
     const todayCount = stats.find((s) => s.date === today)?.count ?? 0
 
@@ -176,10 +166,7 @@ function GeneralSection({
                     label="Launch at startup"
                     description="Start KeliKeli when you log in"
                 >
-                    <Switch
-                        checked={autostart}
-                        onCheckedChange={onAutostart}
-                    />
+                    <Switch checked={autostart} onCheckedChange={onAutostart} />
                 </FormRow>
                 <FormRow
                     label="Flush interval"
@@ -305,7 +292,13 @@ function WebSocketSection({
     )
 }
 
-function AboutSection({ update, onInstall }: { update: UpdateState; onInstall: () => void }) {
+function AboutSection({
+    update,
+    onInstall,
+}: {
+    update: UpdateState
+    onInstall: () => void
+}) {
     return (
         <div className="flex flex-col gap-4">
             <SectionTitle>About</SectionTitle>
