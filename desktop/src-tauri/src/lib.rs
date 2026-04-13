@@ -377,6 +377,18 @@ async fn key_loop(
     }
 }
 
+async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &config::SyncConfig) {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let count = storage.today_count();
+    client
+        .post(&cfg.api_url)
+        .bearer_auth(&cfg.api_key)
+        .json(&serde_json::json!({ "date": today, "count": count }))
+        .send()
+        .await
+        .ok();
+}
+
 async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
     let client = reqwest::Client::new();
     let mut interval = tokio::time::interval(Duration::from_secs(cfg.interval_secs));
@@ -384,15 +396,7 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
     interval.tick().await; // skip the first immediate tick
     loop {
         interval.tick().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let count = storage.today_count();
-        client
-            .post(&cfg.api_url)
-            .bearer_auth(&cfg.api_key)
-            .json(&serde_json::json!({ "date": today, "count": count }))
-            .send()
-            .await
-            .ok();
+        do_sync(&client, &storage, &cfg).await;
     }
 }
 
@@ -420,5 +424,215 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                 None => return,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::StreamExt;
+    use tempfile::TempDir;
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::accept_async;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    fn temp_storage() -> (TempDir, storage::Storage) {
+        let dir = TempDir::new().unwrap();
+        let s = storage::Storage::load_from(dir.path().join("data.json"));
+        (dir, s)
+    }
+
+    fn test_sync_cfg(url: &str) -> config::SyncConfig {
+        config::SyncConfig {
+            enabled: true,
+            api_url: url.to_string(),
+            api_key: "test-key".to_string(),
+            interval_secs: 60,
+        }
+    }
+
+    fn parse_ws_msg(msg: &tokio_tungstenite::tungstenite::Message) -> serde_json::Value {
+        serde_json::from_str(msg.to_text().unwrap()).unwrap()
+    }
+
+    // ── do_sync tests ────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sync_sends_correct_json_payload() {
+        let mut server = mockito::Server::new_async().await;
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+        let mock = server
+            .mock("POST", "/")
+            .match_header("authorization", "Bearer test-key")
+            .match_body(mockito::Matcher::Json(
+                serde_json::json!({ "date": today, "count": 3u64 }),
+            ))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        for _ in 0..3 {
+            storage.increment_today();
+        }
+
+        let client = reqwest::Client::new();
+        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_continues_after_server_error() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock = server
+            .mock("POST", "/")
+            .with_status(500)
+            .expect(2)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        let client = reqwest::Client::new();
+        let cfg = test_sync_cfg(&server.url());
+
+        // Two syncs despite 500 responses — should not panic
+        do_sync(&client, &storage, &cfg).await;
+        do_sync(&client, &storage, &cfg).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_sends_zero_count_when_no_keystrokes() {
+        let mut server = mockito::Server::new_async().await;
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::Json(
+                serde_json::json!({ "date": today, "count": 0u64 }),
+            ))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        let client = reqwest::Client::new();
+        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+
+        mock.assert_async().await;
+    }
+
+    // ── ws_loop tests ────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn ws_connects_and_delivers_keystroke_event() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        let (stream, _) = tokio::time::timeout(
+            Duration::from_secs(2),
+            listener.accept(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut ws = accept_async(stream).await.unwrap();
+
+        tx.send(WsEvent::Keystroke(42)).unwrap();
+
+        let msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+
+        let val = parse_ws_msg(&msg);
+        assert_eq!(val["type"], "keystroke");
+        assert_eq!(val["count"], 42);
+    }
+
+    #[tokio::test]
+    async fn ws_delivers_typing_start_and_stop_events() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut ws = accept_async(stream).await.unwrap();
+
+        tx.send(WsEvent::TypingStart).unwrap();
+        tx.send(WsEvent::TypingStop).unwrap();
+
+        let start_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await.unwrap().unwrap().unwrap();
+        assert_eq!(parse_ws_msg(&start_msg)["type"], "typing_start");
+
+        let stop_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await.unwrap().unwrap().unwrap();
+        assert_eq!(parse_ws_msg(&stop_msg)["type"], "typing_stop");
+    }
+
+    #[tokio::test]
+    async fn ws_reconnects_after_server_closes_connection() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        // First connection
+        let (s1, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await.unwrap().unwrap();
+        let mut ws1 = accept_async(s1).await.unwrap();
+
+        // Send and receive event 1
+        tx.send(WsEvent::Keystroke(1)).unwrap();
+        let msg1 = tokio::time::timeout(Duration::from_secs(2), ws1.next())
+            .await.unwrap().unwrap().unwrap();
+        assert_eq!(parse_ws_msg(&msg1)["count"], 1);
+
+        // Drop server-side to force a broken pipe on the next client send
+        drop(ws1);
+        tokio::task::yield_now().await;
+
+        // Send event 2 — ws_loop will attempt to send on the dead connection,
+        // get an error, break the inner loop, then reconnect immediately.
+        tx.send(WsEvent::Keystroke(2)).unwrap();
+
+        // Accept reconnection (ws_loop reconnects without delay when connect succeeds)
+        let (s2, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await.unwrap().unwrap();
+        let mut ws2 = accept_async(s2).await.unwrap();
+
+        // Send event 3 to confirm the new connection works
+        tx.send(WsEvent::Keystroke(3)).unwrap();
+
+        // ── BUG: event 2 was consumed from rx but never delivered (lost on
+        // the broken send). After the fix, event 2 must arrive first. ──
+        let first = tokio::time::timeout(Duration::from_secs(2), ws2.next())
+            .await.unwrap().unwrap().unwrap();
+        assert_eq!(
+            parse_ws_msg(&first)["count"], 2,
+            "event 2 should be retried after reconnect, not silently dropped"
+        );
+
+        let second = tokio::time::timeout(Duration::from_secs(2), ws2.next())
+            .await.unwrap().unwrap().unwrap();
+        assert_eq!(parse_ws_msg(&second)["count"], 3);
     }
 }
