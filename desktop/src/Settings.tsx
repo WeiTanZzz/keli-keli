@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -487,6 +488,19 @@ export default function Settings() {
     const [active, setActive] = useState<NavId>("statistics")
 
     useEffect(() => {
+        const today = new Date().toISOString().slice(0, 10)
+        const unlisten = listen<{ count: number }>("keystroke", (e) => {
+            setStats((prev) => {
+                const exists = prev.some((s) => s.date === today)
+                if (exists) {
+                    return prev.map((s) =>
+                        s.date === today ? { ...s, count: e.payload.count } : s,
+                    )
+                }
+                return [...prev, { date: today, count: e.payload.count }]
+            })
+        })
+
         invoke<Config>("get_config").then(setCfg)
         invoke<boolean>("get_autostart").then(setAutostart)
         invoke<DayStat[]>("get_stats", { days: 90 }).then(setStats)
@@ -510,6 +524,10 @@ export default function Settings() {
                     message: "Could not reach update server",
                 }),
             )
+
+        return () => {
+            unlisten.then((f) => f())
+        }
     }, [])
 
     const handleInstall = async () => {
