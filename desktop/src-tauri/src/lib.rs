@@ -20,6 +20,7 @@ struct ToggleItem(Mutex<MenuItem<Wry>>);
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
     count: u64,
+    app: String,
 }
 
 #[derive(serde::Serialize)]
@@ -363,7 +364,11 @@ async fn key_loop(
                     Some(KeyEvent::KeyPress { app: ref app_name }) => {
                         let count = storage.increment_today();
                         storage.increment_today_app(app_name);
-                        app.emit("keystroke", KeystrokePayload { count }).ok();
+                        app.emit(
+                            "keystroke",
+                            KeystrokePayload { count, app: app_name.clone() },
+                        )
+                        .ok();
                         if let Ok(item) = app.state::<CountItem>().0.lock() {
                             item.set_text(format!("Today: {count} keystrokes")).ok();
                         }

@@ -596,17 +596,38 @@ export default function Settings() {
 
     useEffect(() => {
         const today = new Date().toISOString().slice(0, 10)
-        const unlisten = listen<{ count: number }>("keystroke", (e) => {
-            setStats((prev) => {
-                const exists = prev.some((s) => s.date === today)
-                if (exists) {
-                    return prev.map((s) =>
-                        s.date === today ? { ...s, count: e.payload.count } : s,
+        const unlisten = listen<{ count: number; app: string }>(
+            "keystroke",
+            (e) => {
+                setStats((prev) => {
+                    const exists = prev.some((s) => s.date === today)
+                    if (exists) {
+                        return prev.map((s) =>
+                            s.date === today
+                                ? { ...s, count: e.payload.count }
+                                : s,
+                        )
+                    }
+                    return [...prev, { date: today, count: e.payload.count }]
+                })
+                setAppStats((prev) => {
+                    const exists = prev.some(
+                        (s) => s.date === today && s.app === e.payload.app,
                     )
-                }
-                return [...prev, { date: today, count: e.payload.count }]
-            })
-        })
+                    if (exists) {
+                        return prev.map((s) =>
+                            s.date === today && s.app === e.payload.app
+                                ? { ...s, count: s.count + 1 }
+                                : s,
+                        )
+                    }
+                    return [
+                        ...prev,
+                        { date: today, app: e.payload.app, count: 1 },
+                    ]
+                })
+            },
+        )
 
         invoke<Config>("get_config").then(setCfg)
         invoke<boolean>("get_autostart").then(setAutostart)
