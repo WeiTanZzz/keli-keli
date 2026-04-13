@@ -43,13 +43,13 @@ enum WsEvent {
 
 #[tauri::command]
 fn get_config(state: tauri::State<Arc<Mutex<config::Config>>>) -> config::Config {
-    state.lock().unwrap().clone()
+    state.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 #[tauri::command]
 fn save_config(new_cfg: config::Config, state: tauri::State<Arc<Mutex<config::Config>>>) {
     config::save(&new_cfg);
-    *state.lock().unwrap() = new_cfg;
+    *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg;
 }
 
 #[tauri::command]
@@ -378,6 +378,11 @@ async fn key_loop(
 }
 
 async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &config::SyncConfig) {
+    // Reject non-http(s) URLs to prevent SSRF via file://, ftp://, etc.
+    let scheme = cfg.api_url.split("://").next().unwrap_or("");
+    if scheme != "http" && scheme != "https" {
+        return;
+    }
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let count = storage.today_count();
     client
@@ -527,6 +532,23 @@ mod tests {
         do_sync(&client, &storage, &cfg).await;
 
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_rejects_non_http_url() {
+        let (_dir, storage) = temp_storage();
+        let client = reqwest::Client::new();
+
+        // None of these should panic or make a network request.
+        for bad_url in &["file:///etc/passwd", "ftp://example.com", "javascript://x"] {
+            let cfg = config::SyncConfig {
+                enabled: true,
+                api_url: bad_url.to_string(),
+                api_key: "k".to_string(),
+                interval_secs: 60,
+            };
+            do_sync(&client, &storage, &cfg).await; // must return without error
+        }
     }
 
     #[tokio::test]

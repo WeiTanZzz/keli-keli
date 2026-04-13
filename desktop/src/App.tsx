@@ -15,7 +15,7 @@ export default function App() {
             }, 750)
         })
         return () => {
-            unlisten.then((f) => f())
+            unlisten.then((f) => f()).catch(() => {})
         }
     }, [])
 
