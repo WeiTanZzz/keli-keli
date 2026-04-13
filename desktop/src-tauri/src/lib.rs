@@ -402,11 +402,23 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
 
 async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
     use tokio_tungstenite::tungstenite::Message;
+    let mut pending: Option<serde_json::Value> = None;
+
     loop {
         let Ok((mut ws, _)) = tokio_tungstenite::connect_async(&url).await else {
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
         };
+
+        // Retry the message that failed on the previous connection before
+        // reading new events from the channel.
+        if let Some(payload) = pending.take() {
+            if ws.send(Message::Text(payload.to_string())).await.is_err() {
+                pending = Some(payload);
+                continue;
+            }
+        }
+
         loop {
             match rx.recv().await {
                 Some(event) => {
@@ -418,6 +430,7 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                         WsEvent::TypingStop => serde_json::json!({ "type": "typing_stop" }),
                     };
                     if ws.send(Message::Text(payload.to_string())).await.is_err() {
+                        pending = Some(payload);
                         break;
                     }
                 }
