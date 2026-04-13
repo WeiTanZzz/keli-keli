@@ -60,6 +60,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             );
             fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
             fn CFRunLoopRun();
+            fn CFRelease(cf: *const c_void);
             static kCFRunLoopCommonModes: CFRunLoopMode;
         }
 
@@ -103,7 +104,14 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     continue;
                 }
-                TAP_PORT.store(tap, std::sync::atomic::Ordering::Relaxed);
+
+                // Release the previous tap port before overwriting, so we don't
+                // leak CFMachPortRef objects if CFRunLoopRun() ever returns.
+                let old = TAP_PORT.swap(tap, std::sync::atomic::Ordering::Relaxed);
+                if !old.is_null() {
+                    CFRelease(old);
+                }
+
                 let source = CFMachPortCreateRunLoopSource(std::ptr::null_mut(), tap, 0);
                 if source.is_null() {
                     std::thread::sleep(std::time::Duration::from_secs(5));
@@ -111,6 +119,8 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 }
                 let rl = CFRunLoopGetCurrent();
                 CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
+                // Release our source reference — the run loop holds its own retain.
+                CFRelease(source);
                 CGEventTapEnable(tap, true);
                 CFRunLoopRun();
             }

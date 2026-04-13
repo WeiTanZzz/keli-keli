@@ -35,6 +35,10 @@ objc = "0.2"
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(cargo_clippy)'] }
 
+[dev-dependencies]
+tempfile = "3"
+mockito = "1"
+
 [profile.release]
 lto = true
 opt-level = "z"

@@ -10,17 +10,25 @@ pub struct StatsData {
     pub counts: HashMap<String, u64>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Storage(Arc<Mutex<StatsData>>);
+struct StorageInner {
+    data: Mutex<StatsData>,
+    path: PathBuf,
+}
 
-fn data_path() -> PathBuf {
+#[derive(Clone)]
+pub struct Storage(Arc<StorageInner>);
+
+fn default_data_path() -> PathBuf {
     let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
     base.join("keli-keli").join("data.json")
 }
 
 impl Storage {
     pub fn load() -> Self {
-        let path = data_path();
+        Self::load_from(default_data_path())
+    }
+
+    pub fn load_from(path: PathBuf) -> Self {
         let data = fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -30,12 +38,15 @@ impl Storage {
                 }
                 StatsData::default()
             });
-        Storage(Arc::new(Mutex::new(data)))
+        Storage(Arc::new(StorageInner {
+            data: Mutex::new(data),
+            path,
+        }))
     }
 
     pub fn increment_today(&self) -> u64 {
         let today = today_key();
-        let mut data = self.0.lock().unwrap();
+        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         let count = data.counts.entry(today).or_insert(0);
         *count += 1;
         *count
@@ -43,12 +54,12 @@ impl Storage {
 
     pub fn today_count(&self) -> u64 {
         let today = today_key();
-        let data = self.0.lock().unwrap();
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         *data.counts.get(&today).unwrap_or(&0)
     }
 
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
-        let data = self.0.lock().unwrap();
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         let mut entries: Vec<_> = data.counts.iter().collect();
         entries.sort_by(|a, b| b.0.cmp(a.0));
         entries.truncate(days);
@@ -57,14 +68,138 @@ impl Storage {
     }
 
     pub fn save(&self) {
-        let path = data_path();
-        let data = self.0.lock().unwrap();
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         if let Ok(json) = serde_json::to_string_pretty(&*data) {
-            let _ = fs::write(&path, json);
+            let _ = fs::write(&self.0.path, json);
         }
     }
 }
 
 fn today_key() -> String {
     Local::now().format("%Y-%m-%d").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn temp_storage() -> (TempDir, Storage) {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::load_from(dir.path().join("data.json"));
+        (dir, storage)
+    }
+
+    #[test]
+    fn increment_returns_monotonically_increasing_count() {
+        let (_dir, s) = temp_storage();
+        assert_eq!(s.increment_today(), 1);
+        assert_eq!(s.increment_today(), 2);
+        assert_eq!(s.increment_today(), 3);
+    }
+
+    #[test]
+    fn today_count_starts_at_zero() {
+        let (_dir, s) = temp_storage();
+        assert_eq!(s.today_count(), 0);
+    }
+
+    #[test]
+    fn save_and_reload_preserves_data() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        let s = Storage::load_from(path.clone());
+        s.increment_today();
+        s.increment_today();
+        s.save();
+
+        let s2 = Storage::load_from(path);
+        assert_eq!(s2.today_count(), 2);
+    }
+
+    #[test]
+    fn load_from_missing_file_starts_empty() {
+        let dir = TempDir::new().unwrap();
+        let s = Storage::load_from(dir.path().join("nonexistent.json"));
+        assert_eq!(s.today_count(), 0);
+    }
+
+    #[test]
+    fn get_stats_returns_dates_sorted_ascending() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        let mut counts = HashMap::new();
+        counts.insert("2024-01-03".to_string(), 300u64);
+        counts.insert("2024-01-01".to_string(), 100u64);
+        counts.insert("2024-01-02".to_string(), 200u64);
+        let json = serde_json::to_string_pretty(&StatsData { counts }).unwrap();
+        fs::write(&path, json).unwrap();
+
+        let s = Storage::load_from(path);
+        let stats = s.get_stats(10);
+
+        assert_eq!(stats.len(), 3);
+        assert_eq!(stats[0].0, "2024-01-01");
+        assert_eq!(stats[1].0, "2024-01-02");
+        assert_eq!(stats[2].0, "2024-01-03");
+    }
+
+    #[test]
+    fn get_stats_truncates_to_most_recent_n_days() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        let mut counts = HashMap::new();
+        for i in 1u64..=10 {
+            counts.insert(format!("2024-01-{i:02}"), i * 100);
+        }
+        let json = serde_json::to_string_pretty(&StatsData { counts }).unwrap();
+        fs::write(&path, json).unwrap();
+
+        let s = Storage::load_from(path);
+        let stats = s.get_stats(5);
+
+        assert_eq!(stats.len(), 5);
+        // most recent 5: 06..10, sorted ascending
+        assert_eq!(stats[0].0, "2024-01-06");
+        assert_eq!(stats[4].0, "2024-01-10");
+    }
+
+    #[test]
+    fn concurrent_increments_are_consistent() {
+        use std::thread;
+
+        let (_dir, s) = temp_storage();
+        let handles: Vec<_> = (0..100)
+            .map(|_| {
+                let s = s.clone();
+                thread::spawn(move || s.increment_today())
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(s.today_count(), 100);
+    }
+
+    // This test verifies that a poisoned Mutex does NOT cause a panic.
+    // It will FAIL until the .unwrap() calls are replaced with
+    // .unwrap_or_else(|e| e.into_inner()).
+    #[test]
+    fn poisoned_mutex_does_not_panic() {
+        let (_dir, s) = temp_storage();
+        let s2 = s.clone();
+
+        // Poison the mutex by panicking while holding the lock
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = s2.0.data.lock().unwrap();
+            panic!("intentional poison");
+        }));
+
+        // These should recover gracefully, not panic
+        assert_eq!(s.today_count(), 0);
+        assert_eq!(s.increment_today(), 1);
+    }
 }
