@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -40,27 +41,70 @@ const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "about", label: "About", icon: Info },
 ]
 
-// ─── Chart ────────────────────────────────────────────────────────────────────
+// ─── Stats helpers ────────────────────────────────────────────────────────────
 
-function Chart({ stats }: { stats: DayStat[] }) {
-    const max = Math.max(...stats.map((s) => s.count), 1)
+function computeStreak(stats: DayStat[]): number {
+    const dateMap = new Map(stats.map((s) => [s.date, s.count]))
+    let streak = 0
+    const d = new Date()
+    while (true) {
+        const key = d.toISOString().slice(0, 10)
+        if ((dateMap.get(key) ?? 0) > 0) {
+            streak++
+            d.setDate(d.getDate() - 1)
+        } else {
+            break
+        }
+    }
+    return streak
+}
+
+function computeDayOfWeekAvg(
+    stats: DayStat[],
+): { label: string; avg: number }[] {
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    const sums = new Array(7).fill(0)
+    const counts = new Array(7).fill(0)
+    for (const s of stats) {
+        if (s.count === 0) continue
+        const dow = (new Date(`${s.date}T12:00:00`).getDay() + 6) % 7
+        sums[dow] += s.count
+        counts[dow]++
+    }
+    return labels.map((label, i) => ({
+        label,
+        avg: counts[i] > 0 ? Math.round(sums[i] / counts[i]) : 0,
+    }))
+}
+
+// ─── Chart components ─────────────────────────────────────────────────────────
+
+function DailyBarChart({ stats }: { stats: DayStat[] }) {
+    const recent = stats.slice(-30)
+    const max = Math.max(...recent.map((s) => s.count), 1)
     const today = new Date().toISOString().slice(0, 10)
     return (
-        <div className="flex flex-col gap-1.5">
-            <div className="flex items-end gap-1 h-16">
-                {stats.map((s) => {
+        <div className="flex flex-col gap-2">
+            <div className="flex items-end gap-0.5 h-20">
+                {recent.map((s) => {
                     const pct = (s.count / max) * 100
                     const isToday = s.date === today
+                    const dow = new Date(`${s.date}T12:00:00`).getDay()
+                    const isWeekend = dow === 0 || dow === 6
                     return (
                         <div
                             key={s.date}
                             title={`${s.date}: ${s.count.toLocaleString()}`}
-                            className="flex flex-1 flex-col justify-end h-full"
+                            className="flex flex-1 flex-col justify-end h-full group cursor-default"
                         >
                             <div
                                 className={cn(
-                                    "w-full rounded-sm transition-all",
-                                    isToday ? "bg-indigo-500" : "bg-zinc-200",
+                                    "w-full rounded-sm transition-all duration-150 group-hover:opacity-70",
+                                    isToday
+                                        ? "bg-indigo-500"
+                                        : isWeekend
+                                          ? "bg-zinc-300"
+                                          : "bg-zinc-200",
                                 )}
                                 style={{
                                     height: `${pct}%`,
@@ -71,12 +115,61 @@ function Chart({ stats }: { stats: DayStat[] }) {
                     )
                 })}
             </div>
-            <div className="flex justify-between">
-                <span className="text-[10px] text-zinc-400">
-                    {stats[0]?.date.slice(5)}
-                </span>
-                <span className="text-[10px] text-zinc-400">today</span>
+            <div className="flex justify-between text-[10px] text-zinc-400">
+                <span>{recent[0]?.date.slice(5)}</span>
+                <span>today</span>
             </div>
+        </div>
+    )
+}
+
+function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
+    const dowData = computeDayOfWeekAvg(stats)
+    const max = Math.max(...dowData.map((d) => d.avg), 1)
+    return (
+        <div className="flex flex-col gap-2">
+            {dowData.map(({ label, avg }) => (
+                <div key={label} className="flex items-center gap-2.5">
+                    <span className="text-[11px] text-zinc-400 w-7 shrink-0">
+                        {label}
+                    </span>
+                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                            style={{ width: `${(avg / max) * 100}%` }}
+                        />
+                    </div>
+                    <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                        {avg > 0 ? avg.toLocaleString() : "—"}
+                    </span>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+function StatChip({
+    label,
+    value,
+    sub,
+}: {
+    label: string
+    value: string
+    sub?: string
+}) {
+    return (
+        <div className="flex flex-col gap-1 p-3">
+            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+                {label}
+            </span>
+            <span className="text-xl font-bold text-zinc-800 tabular-nums leading-none">
+                {value}
+            </span>
+            {sub && (
+                <span className="text-[10px] text-zinc-400 leading-none">
+                    {sub}
+                </span>
+            )}
         </div>
     )
 }
@@ -126,23 +219,69 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function StatisticsSection({ stats }: { stats: DayStat[] }) {
     const today = new Date().toISOString().slice(0, 10)
     const todayCount = stats.find((s) => s.date === today)?.count ?? 0
+    const daysWithData = stats.filter((s) => s.count > 0)
+    const avgCount =
+        daysWithData.length > 0
+            ? Math.round(
+                  daysWithData.reduce((sum, s) => sum + s.count, 0) /
+                      daysWithData.length,
+              )
+            : 0
+    const bestDay = stats.reduce(
+        (best, s) => (s.count > best.count ? s : best),
+        { date: "", count: 0 },
+    )
+    const streak = computeStreak(stats)
 
     return (
         <div className="flex flex-col gap-4">
             <SectionTitle>Statistics</SectionTitle>
+
+            {/* Today hero + 30-day chart */}
             <Card>
                 <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
-                        <span className="text-3xl font-bold text-zinc-900 tabular-nums">
+                        <span className="text-4xl font-bold text-zinc-900 tabular-nums">
                             {todayCount.toLocaleString()}
                         </span>
                         <span className="text-xs text-zinc-400">
                             keystrokes today
                         </span>
                     </div>
-                    <Chart stats={stats} />
+                    <DailyBarChart stats={stats} />
                 </div>
             </Card>
+
+            {/* Stat chips */}
+            <Card>
+                <div className="grid grid-cols-3 divide-x divide-zinc-100">
+                    <StatChip
+                        label="Daily avg"
+                        value={avgCount.toLocaleString()}
+                        sub="keystrokes"
+                    />
+                    <StatChip
+                        label="Best day"
+                        value={bestDay.count.toLocaleString()}
+                        sub={bestDay.date ? bestDay.date.slice(5) : undefined}
+                    />
+                    <StatChip
+                        label="Streak"
+                        value={streak > 0 ? `${streak}d` : "—"}
+                        sub={streak > 0 ? "in a row" : "no streak"}
+                    />
+                </div>
+            </Card>
+
+            {/* Day-of-week pattern */}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>By Day of Week</SectionTitle>
+                <Card>
+                    <div className="px-4 py-3">
+                        <DayOfWeekChart stats={stats} />
+                    </div>
+                </Card>
+            </div>
         </div>
     )
 }
@@ -349,9 +488,22 @@ export default function Settings() {
     const [active, setActive] = useState<NavId>("statistics")
 
     useEffect(() => {
+        const today = new Date().toISOString().slice(0, 10)
+        const unlisten = listen<{ count: number }>("keystroke", (e) => {
+            setStats((prev) => {
+                const exists = prev.some((s) => s.date === today)
+                if (exists) {
+                    return prev.map((s) =>
+                        s.date === today ? { ...s, count: e.payload.count } : s,
+                    )
+                }
+                return [...prev, { date: today, count: e.payload.count }]
+            })
+        })
+
         invoke<Config>("get_config").then(setCfg)
         invoke<boolean>("get_autostart").then(setAutostart)
-        invoke<DayStat[]>("get_stats", { days: 14 }).then(setStats)
+        invoke<DayStat[]>("get_stats", { days: 90 }).then(setStats)
         invoke<{ current: string; latest: string | null; available: boolean }>(
             "check_update",
         )
@@ -372,6 +524,10 @@ export default function Settings() {
                     message: "Could not reach update server",
                 }),
             )
+
+        return () => {
+            unlisten.then((f) => f())
+        }
     }, [])
 
     const handleInstall = async () => {
