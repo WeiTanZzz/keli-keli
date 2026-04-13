@@ -1,5 +1,17 @@
 import { invoke } from "@tauri-apps/api/core"
-import { type ReactNode, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
+import {
+    BarChart2,
+    Globe,
+    Info,
+    Settings2,
+    Zap,
+} from "lucide-react"
 
 interface Config {
     flush_interval_secs: number
@@ -17,175 +29,7 @@ interface DayStat {
     count: number
 }
 
-function Chart({ stats }: { stats: DayStat[] }) {
-    const max = Math.max(...stats.map((s) => s.count), 1)
-    const today = new Date().toISOString().slice(0, 10)
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "flex-end",
-                    gap: 3,
-                    height: 64,
-                }}
-            >
-                {stats.map((s) => {
-                    const pct = (s.count / max) * 100
-                    const isToday = s.date === today
-                    return (
-                        <div
-                            key={s.date}
-                            title={`${s.date}: ${s.count.toLocaleString()}`}
-                            style={{
-                                flex: 1,
-                                height: "100%",
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "flex-end",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: "100%",
-                                    height: `${pct}%`,
-                                    minHeight: s.count ? 2 : 0,
-                                    background: isToday ? "#6366f1" : "#e0e0e0",
-                                    borderRadius: 3,
-                                }}
-                            />
-                        </div>
-                    )
-                })}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 10, color: "#aaa" }}>
-                    {stats[0]?.date.slice(5)}
-                </span>
-                <span style={{ fontSize: 10, color: "#aaa" }}>today</span>
-            </div>
-        </div>
-    )
-}
-
-function Toggle({
-    checked,
-    onChange,
-}: {
-    checked: boolean
-    onChange: (v: boolean) => void
-}) {
-    return (
-        <div
-            onClick={() => onChange(!checked)}
-            style={{
-                width: 36,
-                height: 20,
-                borderRadius: 10,
-                cursor: "pointer",
-                background: checked ? "#6366f1" : "#d1d5db",
-                position: "relative",
-                transition: "background 0.2s",
-                flexShrink: 0,
-            }}
-        >
-            <div
-                style={{
-                    position: "absolute",
-                    top: 2,
-                    left: checked ? 18 : 2,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    transition: "left 0.2s",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                }}
-            />
-        </div>
-    )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div
-            style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                minHeight: 32,
-            }}
-        >
-            <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
-            {children}
-        </div>
-    )
-}
-
-function Input({
-    value,
-    onChange,
-    type = "text",
-    placeholder = "",
-}: {
-    value: string | number
-    onChange: (v: string) => void
-    type?: string
-    placeholder?: string
-}) {
-    return (
-        <input
-            type={type}
-            value={value}
-            placeholder={placeholder}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-                fontSize: 12,
-                color: "#374151",
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: 6,
-                padding: "4px 8px",
-                width: type === "number" ? 72 : 160,
-                outline: "none",
-                fontFamily: "inherit",
-            }}
-        />
-    )
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span
-                style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#9ca3af",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    marginBottom: 4,
-                }}
-            >
-                {title}
-            </span>
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    background: "#fff",
-                    borderRadius: 10,
-                    padding: "8px 12px",
-                    border: "1px solid #e5e7eb",
-                }}
-            >
-                {children}
-            </div>
-        </div>
-    )
-}
+type NavId = "statistics" | "general" | "sync" | "websocket" | "about"
 
 type UpdateState =
     | { status: "checking" }
@@ -194,12 +38,322 @@ type UpdateState =
     | { status: "installing" }
     | { status: "error"; message: string }
 
+const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
+    { id: "statistics", label: "Statistics", icon: BarChart2 },
+    { id: "general", label: "General", icon: Settings2 },
+    { id: "sync", label: "HTTP Sync", icon: Globe },
+    { id: "websocket", label: "WebSocket", icon: Zap },
+    { id: "about", label: "About", icon: Info },
+]
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+
+function Chart({ stats }: { stats: DayStat[] }) {
+    const max = Math.max(...stats.map((s) => s.count), 1)
+    const today = new Date().toISOString().slice(0, 10)
+    return (
+        <div className="flex flex-col gap-1.5">
+            <div className="flex items-end gap-1 h-16">
+                {stats.map((s) => {
+                    const pct = (s.count / max) * 100
+                    const isToday = s.date === today
+                    return (
+                        <div
+                            key={s.date}
+                            title={`${s.date}: ${s.count.toLocaleString()}`}
+                            className="flex flex-1 flex-col justify-end h-full"
+                        >
+                            <div
+                                className={cn(
+                                    "w-full rounded-sm transition-all",
+                                    isToday ? "bg-indigo-500" : "bg-zinc-200",
+                                )}
+                                style={{
+                                    height: `${pct}%`,
+                                    minHeight: s.count ? 2 : 0,
+                                }}
+                            />
+                        </div>
+                    )
+                })}
+            </div>
+            <div className="flex justify-between">
+                <span className="text-[10px] text-zinc-400">
+                    {stats[0]?.date.slice(5)}
+                </span>
+                <span className="text-[10px] text-zinc-400">today</span>
+            </div>
+        </div>
+    )
+}
+
+// ─── Form helpers ─────────────────────────────────────────────────────────────
+
+function FormRow({
+    label,
+    description,
+    children,
+}: {
+    label: string
+    description?: string
+    children: React.ReactNode
+}) {
+    return (
+        <div className="flex items-center justify-between gap-4 py-3 px-4">
+            <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-sm text-zinc-800">{label}</span>
+                {description && (
+                    <span className="text-xs text-zinc-400">{description}</span>
+                )}
+            </div>
+            {children}
+        </div>
+    )
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="bg-white rounded-xl border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
+            {children}
+        </div>
+    )
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+    return (
+        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+            {children}
+        </h2>
+    )
+}
+
+// ─── Sections ─────────────────────────────────────────────────────────────────
+
+function StatisticsSection({
+    stats,
+}: {
+    stats: DayStat[]
+}) {
+    const today = new Date().toISOString().slice(0, 10)
+    const todayCount = stats.find((s) => s.date === today)?.count ?? 0
+
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>Statistics</SectionTitle>
+            <Card>
+                <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
+                    <div className="flex items-baseline justify-between">
+                        <span className="text-3xl font-bold text-zinc-900 tabular-nums">
+                            {todayCount.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-zinc-400">
+                            keystrokes today
+                        </span>
+                    </div>
+                    <Chart stats={stats} />
+                </div>
+            </Card>
+        </div>
+    )
+}
+
+function GeneralSection({
+    autostart,
+    cfg,
+    onAutostart,
+    onFlushInterval,
+}: {
+    autostart: boolean
+    cfg: Config
+    onAutostart: (v: boolean) => void
+    onFlushInterval: (v: string) => void
+}) {
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>General</SectionTitle>
+            <Card>
+                <FormRow
+                    label="Launch at startup"
+                    description="Start KeliKeli when you log in"
+                >
+                    <Switch
+                        checked={autostart}
+                        onCheckedChange={onAutostart}
+                    />
+                </FormRow>
+                <FormRow
+                    label="Flush interval"
+                    description="How often to save data (seconds)"
+                >
+                    <Input
+                        type="number"
+                        value={cfg.flush_interval_secs}
+                        onChange={(e) => onFlushInterval(e.target.value)}
+                        className="w-20"
+                    />
+                </FormRow>
+            </Card>
+        </div>
+    )
+}
+
+function SyncSection({
+    cfg,
+    onUpdate,
+}: {
+    cfg: Config
+    onUpdate: (patch: Partial<Config["sync"]>) => void
+}) {
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>HTTP Sync</SectionTitle>
+            <Card>
+                <FormRow
+                    label="Enabled"
+                    description="Send keystroke data to your API"
+                >
+                    <Switch
+                        checked={cfg.sync.enabled}
+                        onCheckedChange={(v) => onUpdate({ enabled: v })}
+                    />
+                </FormRow>
+                {cfg.sync.enabled && (
+                    <>
+                        <FormRow label="API URL">
+                            <Input
+                                value={cfg.sync.api_url}
+                                onChange={(e) =>
+                                    onUpdate({ api_url: e.target.value })
+                                }
+                                placeholder="https://..."
+                            />
+                        </FormRow>
+                        <FormRow label="API Key">
+                            <Input
+                                value={cfg.sync.api_key}
+                                onChange={(e) =>
+                                    onUpdate({ api_key: e.target.value })
+                                }
+                                placeholder="sk-..."
+                                type="password"
+                            />
+                        </FormRow>
+                        <FormRow label="Sync interval (s)">
+                            <Input
+                                type="number"
+                                value={cfg.sync.interval_secs}
+                                onChange={(e) =>
+                                    onUpdate({
+                                        interval_secs: Number(e.target.value),
+                                    })
+                                }
+                            />
+                        </FormRow>
+                    </>
+                )}
+            </Card>
+        </div>
+    )
+}
+
+function WebSocketSection({
+    cfg,
+    onUpdate,
+}: {
+    cfg: Config
+    onUpdate: (patch: Partial<Config["websocket"]>) => void
+}) {
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>WebSocket</SectionTitle>
+            <Card>
+                <FormRow
+                    label="Enabled"
+                    description="Stream keystrokes in real time"
+                >
+                    <Switch
+                        checked={cfg.websocket.enabled}
+                        onCheckedChange={(v) => onUpdate({ enabled: v })}
+                    />
+                </FormRow>
+                {cfg.websocket.enabled && (
+                    <>
+                        <FormRow label="WS URL">
+                            <Input
+                                value={cfg.websocket.ws_url}
+                                onChange={(e) =>
+                                    onUpdate({ ws_url: e.target.value })
+                                }
+                                placeholder="wss://..."
+                            />
+                        </FormRow>
+                        <FormRow label="Idle timeout (ms)">
+                            <Input
+                                type="number"
+                                value={cfg.websocket.typing_idle_ms}
+                                onChange={(e) =>
+                                    onUpdate({
+                                        typing_idle_ms: Number(e.target.value),
+                                    })
+                                }
+                            />
+                        </FormRow>
+                    </>
+                )}
+            </Card>
+        </div>
+    )
+}
+
+function AboutSection({ update, onInstall }: { update: UpdateState; onInstall: () => void }) {
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>About</SectionTitle>
+            <Card>
+                <FormRow label="Version">
+                    {update.status === "checking" && (
+                        <span className="text-xs text-zinc-400">Checking…</span>
+                    )}
+                    {update.status === "latest" && (
+                        <span className="text-xs text-zinc-400">
+                            v{update.version} · Up to date
+                        </span>
+                    )}
+                    {update.status === "available" && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-400">
+                                v{update.current}
+                            </span>
+                            <Button size="sm" onClick={onInstall}>
+                                Update to v{update.latest}
+                            </Button>
+                        </div>
+                    )}
+                    {update.status === "installing" && (
+                        <span className="text-xs text-indigo-500">
+                            Installing, restarting shortly…
+                        </span>
+                    )}
+                    {update.status === "error" && (
+                        <span className="text-xs text-red-500">
+                            {update.message}
+                        </span>
+                    )}
+                </FormRow>
+            </Card>
+        </div>
+    )
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
 export default function Settings() {
     const [cfg, setCfg] = useState<Config | null>(null)
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
+    const [active, setActive] = useState<NavId>("statistics")
 
     useEffect(() => {
         invoke<Config>("get_config").then(setCfg)
@@ -248,206 +402,108 @@ export default function Settings() {
         setTimeout(() => setSaved(false), 1500)
     }
 
-    const set = (update: Partial<Config>) =>
-        setCfg((c) => (c ? { ...c, ...update } : c))
-    const setSync = (update: Partial<Config["sync"]>) =>
-        setCfg((c) => (c ? { ...c, sync: { ...c.sync, ...update } } : c))
-    const setWs = (update: Partial<Config["websocket"]>) =>
+    const setSync = (patch: Partial<Config["sync"]>) =>
+        setCfg((c) => (c ? { ...c, sync: { ...c.sync, ...patch } } : c))
+    const setWs = (patch: Partial<Config["websocket"]>) =>
         setCfg((c) =>
-            c ? { ...c, websocket: { ...c.websocket, ...update } } : c,
+            c ? { ...c, websocket: { ...c.websocket, ...patch } } : c,
         )
 
     if (!cfg) return null
 
-    const todayCount =
-        stats.find((s) => s.date === new Date().toISOString().slice(0, 10))
-            ?.count ?? 0
+    const showSave = active !== "statistics" && active !== "about"
 
     return (
-        <div
-            style={{
-                background: "#f3f4f6",
-                height: "100vh",
-                overflowY: "auto",
-                padding: 16,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-                fontFamily: "-apple-system, sans-serif",
-            }}
-        >
-            {/* Stats */}
-            <Section title="Statistics">
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                    }}
-                >
-                    <span
-                        style={{ fontSize: 28, fontWeight: 700, color: "#111" }}
-                    >
-                        {todayCount.toLocaleString()}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#9ca3af" }}>
-                        keystrokes today
+        <div className="flex h-screen bg-zinc-100 font-sans select-none overflow-hidden">
+            {/* Sidebar */}
+            <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
+                {/* Logo */}
+                <div className="flex items-center gap-2 px-4 py-4">
+                    <span className="text-lg">⌨️</span>
+                    <span className="font-semibold text-sm text-zinc-800">
+                        KeliKeli
                     </span>
                 </div>
-                <Chart stats={stats} />
-            </Section>
 
-            {/* General */}
-            <Section title="General">
-                <Row label="Launch at startup">
-                    <Toggle checked={autostart} onChange={handleAutostart} />
-                </Row>
-                <div style={{ height: 1, background: "#f3f4f6" }} />
-                <Row label="Flush interval (s)">
-                    <Input
-                        type="number"
-                        value={cfg.flush_interval_secs}
-                        onChange={(v) =>
-                            set({ flush_interval_secs: Number(v) })
-                        }
-                    />
-                </Row>
-            </Section>
+                <Separator />
 
-            {/* API Sync */}
-            <Section title="HTTP Sync">
-                <Row label="Enabled">
-                    <Toggle
-                        checked={cfg.sync.enabled}
-                        onChange={(v) => setSync({ enabled: v })}
-                    />
-                </Row>
-                {cfg.sync.enabled && (
-                    <>
-                        <div style={{ height: 1, background: "#f3f4f6" }} />
-                        <Row label="API URL">
-                            <Input
-                                value={cfg.sync.api_url}
-                                onChange={(v) => setSync({ api_url: v })}
-                                placeholder="https://..."
-                            />
-                        </Row>
-                        <Row label="API Key">
-                            <Input
-                                value={cfg.sync.api_key}
-                                onChange={(v) => setSync({ api_key: v })}
-                                placeholder="sk-..."
-                            />
-                        </Row>
-                    </>
-                )}
-            </Section>
-
-            {/* WebSocket */}
-            <Section title="WebSocket">
-                <Row label="Enabled">
-                    <Toggle
-                        checked={cfg.websocket.enabled}
-                        onChange={(v) => setWs({ enabled: v })}
-                    />
-                </Row>
-                {cfg.websocket.enabled && (
-                    <>
-                        <div style={{ height: 1, background: "#f3f4f6" }} />
-                        <Row label="WS URL">
-                            <Input
-                                value={cfg.websocket.ws_url}
-                                onChange={(v) => setWs({ ws_url: v })}
-                                placeholder="wss://..."
-                            />
-                        </Row>
-                        <Row label="Idle timeout (ms)">
-                            <Input
-                                type="number"
-                                value={cfg.websocket.typing_idle_ms}
-                                onChange={(v) =>
-                                    setWs({ typing_idle_ms: Number(v) })
-                                }
-                            />
-                        </Row>
-                    </>
-                )}
-            </Section>
-
-            {/* About */}
-            <Section title="About">
-                <Row label="Version">
-                    {update.status === "checking" && (
-                        <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                            Checking…
-                        </span>
-                    )}
-                    {update.status === "latest" && (
-                        <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                            v{update.version} · Up to date
-                        </span>
-                    )}
-                    {update.status === "available" && (
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                            }}
-                        >
-                            <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                                v{update.current}
-                            </span>
+                {/* Nav */}
+                <nav className="flex flex-col gap-0.5 p-2 mt-1">
+                    {NAV_ITEMS.map((item) => {
+                        const Icon = item.icon
+                        const isActive = active === item.id
+                        return (
                             <button
+                                key={item.id}
                                 type="button"
-                                onClick={handleInstall}
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: "#fff",
-                                    background: "#6366f1",
-                                    border: "none",
-                                    borderRadius: 6,
-                                    padding: "3px 10px",
-                                    cursor: "pointer",
-                                    fontFamily: "inherit",
-                                }}
+                                onClick={() => setActive(item.id)}
+                                className={cn(
+                                    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-left w-full transition-colors",
+                                    isActive
+                                        ? "bg-indigo-500 text-white shadow-sm"
+                                        : "text-zinc-600 hover:bg-zinc-200/70",
+                                )}
                             >
-                                Update to v{update.latest}
+                                <Icon className="h-3.5 w-3.5 shrink-0" />
+                                {item.label}
                             </button>
-                        </div>
-                    )}
-                    {update.status === "installing" && (
-                        <span style={{ fontSize: 12, color: "#6366f1" }}>
-                            Installing, will restart shortly…
-                        </span>
-                    )}
-                    {update.status === "error" && (
-                        <span style={{ fontSize: 12, color: "#ef4444" }}>
-                            {update.message}
-                        </span>
-                    )}
-                </Row>
-            </Section>
+                        )
+                    })}
+                </nav>
+            </aside>
 
-            <button
-                type="button"
-                onClick={handleSave}
-                style={{
-                    background: saved ? "#10b981" : "#6366f1",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "10px 0",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "background 0.2s",
-                    fontFamily: "inherit",
-                }}
-            >
-                {saved ? "Saved ✓" : "Save"}
-            </button>
+            {/* Content */}
+            <main className="flex flex-col flex-1 min-w-0">
+                <div className="flex-1 overflow-y-auto p-5">
+                    {active === "statistics" && (
+                        <StatisticsSection stats={stats} />
+                    )}
+                    {active === "general" && cfg && (
+                        <GeneralSection
+                            autostart={autostart}
+                            cfg={cfg}
+                            onAutostart={handleAutostart}
+                            onFlushInterval={(v) =>
+                                setCfg((c) =>
+                                    c
+                                        ? {
+                                              ...c,
+                                              flush_interval_secs: Number(v),
+                                          }
+                                        : c,
+                                )
+                            }
+                        />
+                    )}
+                    {active === "sync" && cfg && (
+                        <SyncSection cfg={cfg} onUpdate={setSync} />
+                    )}
+                    {active === "websocket" && cfg && (
+                        <WebSocketSection cfg={cfg} onUpdate={setWs} />
+                    )}
+                    {active === "about" && (
+                        <AboutSection
+                            update={update}
+                            onInstall={handleInstall}
+                        />
+                    )}
+                </div>
+
+                {showSave && (
+                    <>
+                        <Separator />
+                        <div className="p-4">
+                            <Button
+                                size="full"
+                                variant={saved ? "success" : "default"}
+                                onClick={handleSave}
+                            >
+                                {saved ? "Saved ✓" : "Save"}
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </main>
         </div>
     )
 }
