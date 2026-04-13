@@ -93,15 +93,33 @@ That said, any app with Input Monitoring permission has the *technical capabilit
 - If you downloaded a pre-built binary, verify its integrity (check the SHA256 hash against the release page) before installing.
 - Grant Input Monitoring permission only to apps you trust.
 
-### "KeliKeli is damaged and can't be opened"
+### macOS Gatekeeper warnings
 
-macOS Gatekeeper may block unsigned or unnotarized apps with this message. To bypass it:
+keli-keli is signed with a self-signed certificate and is not notarized by Apple. macOS Gatekeeper therefore quarantines the download and may show one of two warnings:
 
+**When opening the DMG:**
+> "Apple could not verify 'KeliKeli_x.x.x_aarch64.dmg' is free of malware…"
+
+**After installing the app:**
+> "KeliKeli is damaged and can't be opened."
+
+Both are caused by the same thing: macOS attaches a `com.apple.quarantine` extended attribute to every file downloaded from the internet. Because the app is not notarized, Gatekeeper refuses to lift the quarantine automatically.
+
+**Fix — remove the quarantine flag:**
+
+On the DMG before mounting:
+```sh
+xattr -dr com.apple.quarantine ~/Downloads/KeliKeli_x.x.x_aarch64.dmg
+```
+
+Or on the installed app:
 ```sh
 xattr -dr com.apple.quarantine /Applications/KeliKeli.app
 ```
 
-This removes the quarantine flag that macOS sets on downloaded files. Only run this if you downloaded the app from a trusted source and have verified its integrity.
+Alternatively, right-click the file in Finder → **Open** → click **Open** in the dialog to grant a one-time exception.
+
+Only do this if you downloaded the app from the [official GitHub Releases](../../releases) page and have verified the file hash matches the one listed there.
 
 ### General tips
 
