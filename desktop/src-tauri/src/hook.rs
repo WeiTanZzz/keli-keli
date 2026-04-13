@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum KeyEvent {
-    KeyPress,
+    KeyPress { app: String },
 }
 
 pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
@@ -67,6 +67,34 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         static TAP_PORT: std::sync::atomic::AtomicPtr<c_void> =
             std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
+        unsafe fn frontmost_app_name() -> String {
+            use objc::runtime::{Class, Object};
+            use objc::{msg_send, sel, sel_impl};
+            let ws_class = match Class::get("NSWorkspace") {
+                Some(c) => c,
+                None => return "Unknown".to_string(),
+            };
+            let workspace: *mut Object = msg_send![ws_class, sharedWorkspace];
+            if workspace.is_null() {
+                return "Unknown".to_string();
+            }
+            let app: *mut Object = msg_send![workspace, frontmostApplication];
+            if app.is_null() {
+                return "Unknown".to_string();
+            }
+            let name: *mut Object = msg_send![app, localizedName];
+            if name.is_null() {
+                return "Unknown".to_string();
+            }
+            let utf8: *const std::os::raw::c_char = msg_send![name, UTF8String];
+            if utf8.is_null() {
+                return "Unknown".to_string();
+            }
+            std::ffi::CStr::from_ptr(utf8)
+                .to_string_lossy()
+                .into_owned()
+        }
+
         unsafe extern "C" fn tap_callback(
             _proxy: CGEventTapProxy,
             event_type: u32,
@@ -82,7 +110,8 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             }
             if event_type == 10 {
                 if let Some(tx) = SENDER.get() {
-                    let _ = tx.send(KeyEvent::KeyPress);
+                    let app = frontmost_app_name();
+                    let _ = tx.send(KeyEvent::KeyPress { app });
                 }
             }
             event

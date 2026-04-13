@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct StatsData {
     pub counts: HashMap<String, u64>,
+    /// date → app_name → keystroke_count  (non-breaking: defaults to empty on old data)
+    #[serde(default)]
+    pub app_counts: HashMap<String, HashMap<String, u64>>,
 }
 
 struct StorageInner {
@@ -52,6 +55,17 @@ impl Storage {
         *count
     }
 
+    pub fn increment_today_app(&self, app: &str) {
+        let today = today_key();
+        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        *data
+            .app_counts
+            .entry(today)
+            .or_default()
+            .entry(app.to_string())
+            .or_insert(0) += 1;
+    }
+
     pub fn today_count(&self) -> u64 {
         let today = today_key();
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
@@ -65,6 +79,24 @@ impl Storage {
         entries.truncate(days);
         entries.reverse();
         entries.into_iter().map(|(k, v)| (k.clone(), *v)).collect()
+    }
+
+    /// Returns (date, app_name, count) for the most recent `days` days, sorted by date desc then count desc.
+    pub fn get_app_stats(&self, days: usize) -> Vec<(String, String, u64)> {
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dates: Vec<&String> = data.app_counts.keys().collect();
+        dates.sort_by(|a, b| b.cmp(a));
+        dates.truncate(days);
+        let mut entries: Vec<(String, String, u64)> = dates
+            .into_iter()
+            .flat_map(|date| {
+                data.app_counts[date]
+                    .iter()
+                    .map(|(app, count)| (date.clone(), app.clone(), *count))
+            })
+            .collect();
+        entries.sort_by(|a, b| b.0.cmp(&a.0).then(b.2.cmp(&a.2)));
+        entries
     }
 
     pub fn save(&self) {
