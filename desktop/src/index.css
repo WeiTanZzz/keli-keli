@@ -1,25 +1,23 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+@import "tailwindcss";
 
-html,
-body,
-#root {
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    font-family: -apple-system, "SF Pro Rounded", sans-serif;
-}
+@layer base {
+    html,
+    body,
+    #root {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        font-family: -apple-system, "SF Pro Rounded", sans-serif;
+    }
 
-/* main indicator window */
-body.indicator {
-    overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-user-drag: none;
-    cursor: grab;
+    /* main indicator window */
+    body.indicator {
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-user-drag: none;
+        cursor: grab;
+    }
 }
 
 @keyframes floatUp {
