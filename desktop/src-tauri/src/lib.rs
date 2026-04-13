@@ -619,24 +619,26 @@ mod tests {
             .await.unwrap().unwrap().unwrap();
         assert_eq!(parse_ws_msg(&msg1)["count"], 1);
 
-        // Drop server-side to force a broken pipe on the next client send
+        // Drop the server side and wait for the TCP RST to reach the client.
+        // Without this sleep, ws.send(event2) may return Ok — the data lands
+        // in the kernel send buffer before the RST arrives — and the broken
+        // connection is never detected, so ws_loop never reconnects.
         drop(ws1);
-        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
-        // Send event 2 — ws_loop will attempt to send on the dead connection,
-        // get an error, break the inner loop, then reconnect immediately.
+        // The TCP connection is now dead. ws_loop will try to send event 2,
+        // get a write error, store it in `pending`, then reconnect.
         tx.send(WsEvent::Keystroke(2)).unwrap();
 
-        // Accept reconnection (ws_loop reconnects without delay when connect succeeds)
+        // Accept reconnection
         let (s2, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
             .await.unwrap().unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
-        // Send event 3 to confirm the new connection works
         tx.send(WsEvent::Keystroke(3)).unwrap();
 
-        // ── BUG: event 2 was consumed from rx but never delivered (lost on
-        // the broken send). After the fix, event 2 must arrive first. ──
+        // event 2 must arrive first — stored in `pending` and retried on the
+        // new connection instead of being silently dropped.
         let first = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await.unwrap().unwrap().unwrap();
         assert_eq!(
