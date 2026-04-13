@@ -2,7 +2,7 @@ mod config;
 mod hook;
 mod storage;
 
-use futures_util::SinkExt;
+use futures_util::{SinkExt, StreamExt};
 use hook::KeyEvent;
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -405,36 +405,45 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
     let mut pending: Option<serde_json::Value> = None;
 
     loop {
-        let Ok((mut ws, _)) = tokio_tungstenite::connect_async(&url).await else {
+        let Ok((ws, _)) = tokio_tungstenite::connect_async(&url).await else {
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
         };
+        let (mut write, mut read) = ws.split();
 
         // Retry the message that failed on the previous connection before
         // reading new events from the channel.
         if let Some(payload) = pending.take() {
-            if ws.send(Message::Text(payload.to_string())).await.is_err() {
+            if write.send(Message::Text(payload.to_string())).await.is_err() {
                 pending = Some(payload);
                 continue;
             }
         }
 
         loop {
-            match rx.recv().await {
-                Some(event) => {
-                    let payload = match event {
-                        WsEvent::Keystroke(count) => {
-                            serde_json::json!({ "type": "keystroke", "count": count })
+            tokio::select! {
+                event = rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            let payload = match event {
+                                WsEvent::Keystroke(count) => {
+                                    serde_json::json!({ "type": "keystroke", "count": count })
+                                }
+                                WsEvent::TypingStart => serde_json::json!({ "type": "typing_start" }),
+                                WsEvent::TypingStop => serde_json::json!({ "type": "typing_stop" }),
+                            };
+                            if write.send(Message::Text(payload.to_string())).await.is_err() {
+                                pending = Some(payload);
+                                break;
+                            }
                         }
-                        WsEvent::TypingStart => serde_json::json!({ "type": "typing_start" }),
-                        WsEvent::TypingStop => serde_json::json!({ "type": "typing_stop" }),
-                    };
-                    if ws.send(Message::Text(payload.to_string())).await.is_err() {
-                        pending = Some(payload);
-                        break;
+                        None => return,
                     }
                 }
-                None => return,
+                // Detect server-initiated close or connection reset via the read
+                // half — a write-only loop would never see a graceful FIN until
+                // the next send attempt, causing a stale connection to linger.
+                _ = read.next() => break,
             }
         }
     }
@@ -619,35 +628,26 @@ mod tests {
             .await.unwrap().unwrap().unwrap();
         assert_eq!(parse_ws_msg(&msg1)["count"], 1);
 
-        // Drop the server side and wait for the TCP RST to reach the client.
-        // Without this sleep, ws.send(event2) may return Ok — the data lands
-        // in the kernel send buffer before the RST arrives — and the broken
-        // connection is never detected, so ws_loop never reconnects.
+        // Drop the server side. ws_loop's select! is also polling read.next(),
+        // so it detects the TCP FIN immediately — no sleep needed.
         drop(ws1);
-        tokio::time::sleep(Duration::from_millis(200)).await;
 
-        // The TCP connection is now dead. ws_loop will try to send event 2,
-        // get a write error, store it in `pending`, then reconnect.
-        tx.send(WsEvent::Keystroke(2)).unwrap();
-
-        // Accept reconnection
+        // listener.accept() acts as the synchronization point: it only returns
+        // once ws_loop has actually reconnected, so any events we send after
+        // this point are guaranteed to land on the new connection.
         let (s2, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
             .await.unwrap().unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
+        tx.send(WsEvent::Keystroke(2)).unwrap();
         tx.send(WsEvent::Keystroke(3)).unwrap();
 
-        // event 2 must arrive first — stored in `pending` and retried on the
-        // new connection instead of being silently dropped.
-        let first = tokio::time::timeout(Duration::from_secs(2), ws2.next())
+        let msg2 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await.unwrap().unwrap().unwrap();
-        assert_eq!(
-            parse_ws_msg(&first)["count"], 2,
-            "event 2 should be retried after reconnect, not silently dropped"
-        );
+        assert_eq!(parse_ws_msg(&msg2)["count"], 2);
 
-        let second = tokio::time::timeout(Duration::from_secs(2), ws2.next())
+        let msg3 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await.unwrap().unwrap().unwrap();
-        assert_eq!(parse_ws_msg(&second)["count"], 3);
+        assert_eq!(parse_ws_msg(&msg3)["count"], 3);
     }
 }
