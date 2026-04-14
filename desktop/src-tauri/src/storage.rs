@@ -167,10 +167,10 @@ mod tests {
         counts.insert("2024-01-01".to_string(), 100u64);
         counts.insert("2024-01-02".to_string(), 200u64);
         let json = serde_json::to_string_pretty(&StatsData {
-                counts,
-                ..Default::default()
-            })
-            .unwrap();
+            counts,
+            ..Default::default()
+        })
+        .unwrap();
         fs::write(&path, json).unwrap();
 
         let s = Storage::load_from(path);
@@ -192,10 +192,10 @@ mod tests {
             counts.insert(format!("2024-01-{i:02}"), i * 100);
         }
         let json = serde_json::to_string_pretty(&StatsData {
-                counts,
-                ..Default::default()
-            })
-            .unwrap();
+            counts,
+            ..Default::default()
+        })
+        .unwrap();
         fs::write(&path, json).unwrap();
 
         let s = Storage::load_from(path);
