@@ -1,34 +1,12 @@
-import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { type AppStat, api, type Config, type DayStat } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-
-interface Config {
-    flush_interval_secs: number
-    sync: {
-        enabled: boolean
-        api_url: string
-        api_key: string
-        interval_secs: number
-    }
-    websocket: { enabled: boolean; ws_url: string; typing_idle_ms: number }
-}
-
-interface DayStat {
-    date: string
-    count: number
-}
-
-interface AppStat {
-    date: string
-    app: string
-    count: number
-}
 
 type NavId = "statistics" | "general" | "sync" | "websocket" | "about"
 
@@ -99,8 +77,11 @@ function computeDayOfWeekAvg(
 // ─── Chart components ─────────────────────────────────────────────────────────
 
 function DailyBarChart({ stats }: { stats: DayStat[] }) {
-    const recent = stats.slice(-30)
-    const max = Math.max(...recent.map((s) => s.count), 1)
+    const recent = useMemo(() => stats.slice(-30), [stats])
+    const max = useMemo(
+        () => Math.max(...recent.map((s) => s.count), 1),
+        [recent],
+    )
     const today = new Date().toISOString().slice(0, 10)
     return (
         <div className="flex flex-col gap-2">
@@ -143,8 +124,11 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
 }
 
 function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
-    const dowData = computeDayOfWeekAvg(stats)
-    const max = Math.max(...dowData.map((d) => d.avg), 1)
+    const dowData = useMemo(() => computeDayOfWeekAvg(stats), [stats])
+    const max = useMemo(
+        () => Math.max(...dowData.map((d) => d.avg), 1),
+        [dowData],
+    )
     return (
         <div className="flex flex-col gap-2">
             {dowData.map(({ label, avg }) => (
@@ -279,27 +263,50 @@ function StatisticsSection({
 }) {
     const today = new Date().toISOString().slice(0, 10)
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-    const todayCount = stats.find((s) => s.date === today)?.count ?? 0
-    const yesterdayCount = stats.find((s) => s.date === yesterday)?.count ?? 0
-    const daysWithData = stats.filter((s) => s.count > 0)
-    const avgCount =
-        daysWithData.length > 0
-            ? Math.round(
-                  daysWithData.reduce((sum, s) => sum + s.count, 0) /
-                      daysWithData.length,
-              )
-            : 0
-    const bestDay = stats.reduce(
-        (best, s) => (s.count > best.count ? s : best),
-        { date: "", count: 0 },
+    const todayCount = useMemo(
+        () => stats.find((s) => s.date === today)?.count ?? 0,
+        [stats, today],
     )
-    const streak = computeStreak(stats)
-    const allTimeTotal = stats.reduce((sum, s) => sum + s.count, 0)
-
-    const trendPct =
-        yesterdayCount > 0
-            ? Math.round(((todayCount - yesterdayCount) / yesterdayCount) * 100)
-            : null
+    const yesterdayCount = useMemo(
+        () => stats.find((s) => s.date === yesterday)?.count ?? 0,
+        [stats, yesterday],
+    )
+    const daysWithData = useMemo(
+        () => stats.filter((s) => s.count > 0),
+        [stats],
+    )
+    const avgCount = useMemo(
+        () =>
+            daysWithData.length > 0
+                ? Math.round(
+                      daysWithData.reduce((sum, s) => sum + s.count, 0) /
+                          daysWithData.length,
+                  )
+                : 0,
+        [daysWithData],
+    )
+    const bestDay = useMemo(
+        () =>
+            stats.reduce((best, s) => (s.count > best.count ? s : best), {
+                date: "",
+                count: 0,
+            }),
+        [stats],
+    )
+    const streak = useMemo(() => computeStreak(stats), [stats])
+    const allTimeTotal = useMemo(
+        () => stats.reduce((sum, s) => sum + s.count, 0),
+        [stats],
+    )
+    const trendPct = useMemo(
+        () =>
+            yesterdayCount > 0
+                ? Math.round(
+                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
+                  )
+                : null,
+        [todayCount, yesterdayCount],
+    )
 
     return (
         <div className="flex flex-col gap-4">
@@ -629,13 +636,11 @@ export default function Settings() {
             },
         )
 
-        invoke<Config>("get_config").then(setCfg)
-        invoke<boolean>("get_autostart").then(setAutostart)
-        invoke<DayStat[]>("get_stats", { days: 90 }).then(setStats)
-        invoke<AppStat[]>("get_app_stats", { days: 90 }).then(setAppStats)
-        invoke<{ current: string; latest: string | null; available: boolean }>(
-            "check_update",
-        )
+        api.getConfig().then(setCfg)
+        api.getAutostart().then(setAutostart)
+        api.getStats(90).then(setStats)
+        api.getAppStats(90).then(setAppStats)
+        api.checkUpdate()
             .then((info) => {
                 if (info.available && info.latest) {
                     setUpdate({
@@ -662,7 +667,7 @@ export default function Settings() {
     const handleInstall = async () => {
         setUpdate({ status: "installing" })
         try {
-            await invoke("install_update")
+            await api.installUpdate()
         } catch (e) {
             setUpdate({ status: "error", message: String(e) })
         }
@@ -670,12 +675,12 @@ export default function Settings() {
 
     const handleAutostart = (v: boolean) => {
         setAutostart(v)
-        invoke("set_autostart", { enabled: v })
+        api.setAutostart(v)
     }
 
     const handleSave = async () => {
         if (!cfg) return
-        await invoke("save_config", { newCfg: cfg })
+        await api.saveConfig(cfg)
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
     }
