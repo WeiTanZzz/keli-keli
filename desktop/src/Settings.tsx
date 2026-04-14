@@ -24,6 +24,12 @@ interface DayStat {
     count: number
 }
 
+interface AppStat {
+    date: string
+    app: string
+    count: number
+}
+
 type NavId = "statistics" | "general" | "sync" | "websocket" | "about"
 
 type UpdateState =
@@ -42,6 +48,19 @@ const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
 ]
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
+
+function computeAppTotals(
+    appStats: AppStat[],
+): { app: string; count: number }[] {
+    const totals = new Map<string, number>()
+    for (const s of appStats) {
+        totals.set(s.app, (totals.get(s.app) ?? 0) + s.count)
+    }
+    return Array.from(totals.entries())
+        .map(([app, count]) => ({ app, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+}
 
 function computeStreak(stats: DayStat[]): number {
     const dateMap = new Map(stats.map((s) => [s.date, s.count]))
@@ -148,6 +167,41 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
     )
 }
 
+function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
+    const data = computeAppTotals(appStats)
+    const max = Math.max(...data.map((d) => d.count), 1)
+    if (data.length === 0) {
+        return (
+            <p className="text-xs text-zinc-400 text-center py-1">
+                No data yet — start typing!
+            </p>
+        )
+    }
+    return (
+        <div className="flex flex-col gap-2">
+            {data.map(({ app, count }) => (
+                <div key={app} className="flex items-center gap-2.5">
+                    <span
+                        className="text-[11px] text-zinc-500 w-28 truncate shrink-0"
+                        title={app}
+                    >
+                        {app}
+                    </span>
+                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                            style={{ width: `${(count / max) * 100}%` }}
+                        />
+                    </div>
+                    <span className="text-[11px] text-zinc-400 w-16 text-right tabular-nums">
+                        {count.toLocaleString()}
+                    </span>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 function StatChip({
     label,
     value,
@@ -216,9 +270,17 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
 
-function StatisticsSection({ stats }: { stats: DayStat[] }) {
+function StatisticsSection({
+    stats,
+    appStats,
+}: {
+    stats: DayStat[]
+    appStats: AppStat[]
+}) {
     const today = new Date().toISOString().slice(0, 10)
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
     const todayCount = stats.find((s) => s.date === today)?.count ?? 0
+    const yesterdayCount = stats.find((s) => s.date === yesterday)?.count ?? 0
     const daysWithData = stats.filter((s) => s.count > 0)
     const avgCount =
         daysWithData.length > 0
@@ -232,6 +294,12 @@ function StatisticsSection({ stats }: { stats: DayStat[] }) {
         { date: "", count: 0 },
     )
     const streak = computeStreak(stats)
+    const allTimeTotal = stats.reduce((sum, s) => sum + s.count, 0)
+
+    const trendPct =
+        yesterdayCount > 0
+            ? Math.round(((todayCount - yesterdayCount) / yesterdayCount) * 100)
+            : null
 
     return (
         <div className="flex flex-col gap-4">
@@ -241,9 +309,24 @@ function StatisticsSection({ stats }: { stats: DayStat[] }) {
             <Card>
                 <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
-                        <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                            {todayCount.toLocaleString()}
-                        </span>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-4xl font-bold text-zinc-900 tabular-nums">
+                                {todayCount.toLocaleString()}
+                            </span>
+                            {trendPct !== null && (
+                                <span
+                                    className={cn(
+                                        "text-xs font-medium tabular-nums",
+                                        trendPct >= 0
+                                            ? "text-emerald-500"
+                                            : "text-red-400",
+                                    )}
+                                >
+                                    {trendPct >= 0 ? "+" : ""}
+                                    {trendPct}%
+                                </span>
+                            )}
+                        </div>
                         <span className="text-xs text-zinc-400">
                             keystrokes today
                         </span>
@@ -254,7 +337,7 @@ function StatisticsSection({ stats }: { stats: DayStat[] }) {
 
             {/* Stat chips */}
             <Card>
-                <div className="grid grid-cols-3 divide-x divide-zinc-100">
+                <div className="grid grid-cols-2 divide-x divide-zinc-100">
                     <StatChip
                         label="Daily avg"
                         value={avgCount.toLocaleString()}
@@ -265,10 +348,23 @@ function StatisticsSection({ stats }: { stats: DayStat[] }) {
                         value={bestDay.count.toLocaleString()}
                         sub={bestDay.date ? bestDay.date.slice(5) : undefined}
                     />
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-zinc-100 border-t border-zinc-100">
                     <StatChip
                         label="Streak"
                         value={streak > 0 ? `${streak}d` : "—"}
                         sub={streak > 0 ? "in a row" : "no streak"}
+                    />
+                    <StatChip
+                        label="All time"
+                        value={
+                            allTimeTotal >= 1_000_000
+                                ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
+                                : allTimeTotal >= 1_000
+                                  ? `${(allTimeTotal / 1_000).toFixed(1)}K`
+                                  : allTimeTotal.toLocaleString()
+                        }
+                        sub="keystrokes"
                     />
                 </div>
             </Card>
@@ -279,6 +375,16 @@ function StatisticsSection({ stats }: { stats: DayStat[] }) {
                 <Card>
                     <div className="px-4 py-3">
                         <DayOfWeekChart stats={stats} />
+                    </div>
+                </Card>
+            </div>
+
+            {/* App breakdown */}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>By App</SectionTitle>
+                <Card>
+                    <div className="px-4 py-3">
+                        <AppBreakdownChart appStats={appStats} />
                     </div>
                 </Card>
             </div>
@@ -483,27 +589,50 @@ export default function Settings() {
     const [cfg, setCfg] = useState<Config | null>(null)
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
+    const [appStats, setAppStats] = useState<AppStat[]>([])
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
 
     useEffect(() => {
         const today = new Date().toISOString().slice(0, 10)
-        const unlisten = listen<{ count: number }>("keystroke", (e) => {
-            setStats((prev) => {
-                const exists = prev.some((s) => s.date === today)
-                if (exists) {
-                    return prev.map((s) =>
-                        s.date === today ? { ...s, count: e.payload.count } : s,
+        const unlisten = listen<{ count: number; app: string }>(
+            "keystroke",
+            (e) => {
+                setStats((prev) => {
+                    const exists = prev.some((s) => s.date === today)
+                    if (exists) {
+                        return prev.map((s) =>
+                            s.date === today
+                                ? { ...s, count: e.payload.count }
+                                : s,
+                        )
+                    }
+                    return [...prev, { date: today, count: e.payload.count }]
+                })
+                setAppStats((prev) => {
+                    const exists = prev.some(
+                        (s) => s.date === today && s.app === e.payload.app,
                     )
-                }
-                return [...prev, { date: today, count: e.payload.count }]
-            })
-        })
+                    if (exists) {
+                        return prev.map((s) =>
+                            s.date === today && s.app === e.payload.app
+                                ? { ...s, count: s.count + 1 }
+                                : s,
+                        )
+                    }
+                    return [
+                        ...prev,
+                        { date: today, app: e.payload.app, count: 1 },
+                    ]
+                })
+            },
+        )
 
         invoke<Config>("get_config").then(setCfg)
         invoke<boolean>("get_autostart").then(setAutostart)
         invoke<DayStat[]>("get_stats", { days: 90 }).then(setStats)
+        invoke<AppStat[]>("get_app_stats", { days: 90 }).then(setAppStats)
         invoke<{ current: string; latest: string | null; available: boolean }>(
             "check_update",
         )
@@ -605,7 +734,7 @@ export default function Settings() {
             <main className="flex flex-col flex-1 min-w-0">
                 <div className="flex-1 overflow-y-auto p-5">
                     {active === "statistics" && (
-                        <StatisticsSection stats={stats} />
+                        <StatisticsSection stats={stats} appStats={appStats} />
                     )}
                     {active === "general" && cfg && (
                         <GeneralSection

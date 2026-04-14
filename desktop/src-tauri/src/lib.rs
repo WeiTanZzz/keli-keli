@@ -20,11 +20,19 @@ struct ToggleItem(Mutex<MenuItem<Wry>>);
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
     count: u64,
+    app: String,
 }
 
 #[derive(serde::Serialize)]
 struct DayStat {
     date: String,
+    count: u64,
+}
+
+#[derive(serde::Serialize)]
+struct AppStat {
+    date: String,
+    app: String,
     count: u64,
 }
 
@@ -58,6 +66,15 @@ fn get_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<DaySta
         .get_stats(days)
         .into_iter()
         .map(|(date, count)| DayStat { date, count })
+        .collect()
+}
+
+#[tauri::command]
+fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppStat> {
+    storage
+        .get_app_stats(days)
+        .into_iter()
+        .map(|(date, app, count)| AppStat { date, app, count })
         .collect()
 }
 
@@ -179,6 +196,7 @@ pub fn run() {
             get_config,
             save_config,
             get_stats,
+            get_app_stats,
             get_autostart,
             set_autostart,
             check_update,
@@ -343,9 +361,14 @@ async fn key_loop(
         tokio::select! {
             event = key_rx.recv() => {
                 match event {
-                    Some(KeyEvent::KeyPress) => {
+                    Some(KeyEvent::KeyPress { app: ref app_name }) => {
                         let count = storage.increment_today();
-                        app.emit("keystroke", KeystrokePayload { count }).ok();
+                        storage.increment_today_app(app_name);
+                        app.emit(
+                            "keystroke",
+                            KeystrokePayload { count, app: app_name.clone() },
+                        )
+                        .ok();
                         if let Ok(item) = app.state::<CountItem>().0.lock() {
                             item.set_text(format!("Today: {count} keystrokes")).ok();
                         }
