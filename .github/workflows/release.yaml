@@ -7,9 +7,6 @@ on:
                 description: "Release version (e.g. v1.0.0)"
                 required: true
                 type: string
-    push:
-        tags:
-            - "v*.*.*"
 
 concurrency:
     group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
@@ -24,7 +21,6 @@ env:
 jobs:
     create_tag:
         name: Create tag
-        if: github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
 
         steps:
@@ -68,7 +64,7 @@ jobs:
     release:
         name: release (${{ matrix.os }}, ${{ matrix.target }})
         needs: [create_tag]
-        if: always() && (needs.create_tag.result == 'success' || needs.create_tag.result == 'skipped')
+        if: needs.create_tag.result == 'success'
         strategy:
             fail-fast: false
             matrix:
@@ -80,6 +76,8 @@ jobs:
 
         steps:
             - uses: actions/checkout@v6
+              with:
+                  ref: ${{ env.RELEASE_VERSION }}
 
             - uses: pnpm/action-setup@v6
               with:
