@@ -431,12 +431,16 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
 async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
     use tokio_tungstenite::tungstenite::Message;
     let mut pending: Option<serde_json::Value> = None;
+    let mut retry_delay = Duration::from_secs(2);
+    const MAX_RETRY_DELAY: Duration = Duration::from_secs(300);
 
     loop {
         let Ok((ws, _)) = tokio_tungstenite::connect_async(&url).await else {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
             continue;
         };
+        retry_delay = Duration::from_secs(2);
         let (mut write, mut read) = ws.split();
 
         // Retry the message that failed on the previous connection before
