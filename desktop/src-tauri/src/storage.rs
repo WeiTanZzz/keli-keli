@@ -11,9 +11,12 @@ pub struct StatsData {
     /// date → app_name → keystroke_count
     #[serde(default)]
     pub app_counts: HashMap<String, HashMap<String, u64>>,
-    /// date → app_name → mouse_click_count
+    /// date → app_name → left_click_count
     #[serde(default)]
-    pub app_click_counts: HashMap<String, HashMap<String, u64>>,
+    pub app_left_click_counts: HashMap<String, HashMap<String, u64>>,
+    /// date → app_name → right_click_count
+    #[serde(default)]
+    pub app_right_click_counts: HashMap<String, HashMap<String, u64>>,
 }
 
 struct StorageInner {
@@ -69,31 +72,63 @@ impl Storage {
             .or_insert(0) += 1;
     }
 
-    pub fn increment_today_app_click(&self, app: &str) {
+    /// button: 0 = left, 1 = right, anything else is ignored
+    pub fn increment_today_app_click(&self, app: &str, button: u8) {
         let today = today_key();
         let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
-        *data
-            .app_click_counts
-            .entry(today)
+        let map = match button {
+            0 => &mut data.app_left_click_counts,
+            1 => &mut data.app_right_click_counts,
+            _ => return,
+        };
+        *map.entry(today)
             .or_default()
             .entry(app.to_string())
             .or_insert(0) += 1;
     }
 
-    pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64)> {
+    /// Returns (date, app, left_clicks, right_clicks) for the most recent `days` days.
+    pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64, u64)> {
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
-        let mut dates: Vec<&String> = data.app_click_counts.keys().collect();
-        dates.sort_by(|a, b| b.cmp(a));
-        dates.truncate(days);
-        let mut entries: Vec<(String, String, u64)> = dates
+        // Collect all (date, app) pairs that appear in either map
+        let mut keys: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+        for (date, apps) in &data.app_left_click_counts {
+            for app in apps.keys() {
+                keys.insert((date.clone(), app.clone()));
+            }
+        }
+        for (date, apps) in &data.app_right_click_counts {
+            for app in apps.keys() {
+                keys.insert((date.clone(), app.clone()));
+            }
+        }
+        // Limit to the most recent `days` distinct dates
+        let mut all_dates: Vec<String> = keys.iter().map(|(d, _)| d.clone()).collect();
+        all_dates.sort_by(|a, b| b.cmp(a));
+        all_dates.dedup();
+        all_dates.truncate(days);
+        let cutoff = all_dates.last().cloned().unwrap_or_default();
+
+        let mut entries: Vec<(String, String, u64, u64)> = keys
             .into_iter()
-            .flat_map(|date| {
-                data.app_click_counts[date]
-                    .iter()
-                    .map(|(app, count)| (date.clone(), app.clone(), *count))
+            .filter(|(date, _)| date.as_str() >= cutoff.as_str())
+            .map(|(date, app)| {
+                let left = data
+                    .app_left_click_counts
+                    .get(&date)
+                    .and_then(|m| m.get(&app))
+                    .copied()
+                    .unwrap_or(0);
+                let right = data
+                    .app_right_click_counts
+                    .get(&date)
+                    .and_then(|m| m.get(&app))
+                    .copied()
+                    .unwrap_or(0);
+                (date, app, left, right)
             })
             .collect();
-        entries.sort_by(|a, b| b.0.cmp(&a.0).then(b.2.cmp(&a.2)));
+        entries.sort_by(|a, b| b.0.cmp(&a.0).then((b.2 + b.3).cmp(&(a.2 + a.3))));
         entries
     }
 
@@ -260,7 +295,7 @@ mod tests {
         let (_dir, s) = temp_storage();
         s.increment_today_app("Safari");
         s.increment_today_app("Safari");
-        s.increment_today_app_click("Safari");
+        s.increment_today_app_click("Safari", 0); // left click
 
         let key_stats = s.get_app_stats(7);
         let click_stats = s.get_app_click_stats(7);
@@ -270,13 +305,31 @@ mod tests {
             .find(|(_, a, _)| a == "Safari")
             .copied()
             .unwrap();
-        let (_, _, click_count) = click_stats
+        let (_, _, left, right) = click_stats
             .iter()
-            .find(|(_, a, _)| a == "Safari")
+            .find(|(_, a, _, _)| a == "Safari")
             .copied()
             .unwrap();
         assert_eq!(key_count, 2);
-        assert_eq!(click_count, 1);
+        assert_eq!(left, 1);
+        assert_eq!(right, 0);
+    }
+
+    #[test]
+    fn left_and_right_clicks_tracked_independently() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app_click("Finder", 0); // left
+        s.increment_today_app_click("Finder", 0); // left
+        s.increment_today_app_click("Finder", 1); // right
+
+        let click_stats = s.get_app_click_stats(7);
+        let (_, _, left, right) = click_stats
+            .iter()
+            .find(|(_, a, _, _)| a == "Finder")
+            .copied()
+            .unwrap();
+        assert_eq!(left, 2);
+        assert_eq!(right, 1);
     }
 
     #[test]
@@ -285,18 +338,19 @@ mod tests {
         let path = dir.path().join("data.json");
 
         let s = Storage::load_from(path.clone());
-        s.increment_today_app_click("Finder");
-        s.increment_today_app_click("Finder");
+        s.increment_today_app_click("Finder", 0);
+        s.increment_today_app_click("Finder", 1);
         s.save();
 
         let s2 = Storage::load_from(path);
         let click_stats = s2.get_app_click_stats(7);
-        let (_, _, count) = click_stats
+        let (_, _, left, right) = click_stats
             .iter()
-            .find(|(_, a, _)| a == "Finder")
+            .find(|(_, a, _, _)| a == "Finder")
             .copied()
             .unwrap();
-        assert_eq!(count, 2);
+        assert_eq!(left, 1);
+        assert_eq!(right, 1);
     }
 
     // This test verifies that a poisoned Mutex does NOT cause a panic.

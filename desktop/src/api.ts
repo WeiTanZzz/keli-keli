@@ -22,6 +22,13 @@ export interface AppStat {
     count: number
 }
 
+export interface AppClickStat {
+    date: string
+    app: string
+    left_clicks: number
+    right_clicks: number
+}
+
 export interface UpdateInfo {
     current: string
     latest: string | null
@@ -45,8 +52,8 @@ export const api = {
     getAppStats: (days: number): Promise<AppStat[]> =>
         invoke<AppStat[]>("get_app_stats", { days }),
 
-    getAppClickStats: (days: number): Promise<AppStat[]> =>
-        invoke<AppStat[]>("get_app_click_stats", { days }),
+    getAppClickStats: (days: number): Promise<AppClickStat[]> =>
+        invoke<AppClickStat[]>("get_app_click_stats", { days }),
 
     checkUpdate: (): Promise<UpdateInfo> => invoke<UpdateInfo>("check_update"),
 

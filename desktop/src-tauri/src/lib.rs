@@ -44,6 +44,14 @@ struct AppStat {
 }
 
 #[derive(serde::Serialize)]
+struct AppClickStat {
+    date: String,
+    app: String,
+    left_clicks: u64,
+    right_clicks: u64,
+}
+
+#[derive(serde::Serialize)]
 struct UpdateStatus {
     current: String,
     latest: Option<String>,
@@ -86,11 +94,19 @@ fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<Ap
 }
 
 #[tauri::command]
-fn get_app_click_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppStat> {
+fn get_app_click_stats(
+    days: usize,
+    storage: tauri::State<storage::Storage>,
+) -> Vec<AppClickStat> {
     storage
         .get_app_click_stats(days)
         .into_iter()
-        .map(|(date, app, count)| AppStat { date, app, count })
+        .map(|(date, app, left_clicks, right_clicks)| AppClickStat {
+            date,
+            app,
+            left_clicks,
+            right_clicks,
+        })
         .collect()
 }
 
@@ -488,7 +504,7 @@ async fn key_loop(
                         app: ref app_name,
                         button,
                     }) => {
-                        storage.increment_today_app_click(app_name);
+                        storage.increment_today_app_click(app_name, button);
                         app.emit(
                             "click",
                             ClickPayload {

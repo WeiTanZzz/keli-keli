@@ -1,7 +1,7 @@
 import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { type AppStat, api, type Config, type DayStat } from "@/api"
+import { type AppStat, type AppClickStat, api, type Config, type DayStat } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -295,7 +295,7 @@ function AppBreakdownChart({
     clickStats,
 }: {
     appStats: AppStat[]
-    clickStats: AppStat[]
+    clickStats: AppClickStat[]
 }) {
     const [period, setPeriod] = useState<AppPeriod>("all")
 
@@ -304,42 +304,56 @@ function AppBreakdownChart({
         const weekAgo = new Date(Date.now() - 7 * 86400000)
             .toISOString()
             .slice(0, 10)
-        return (stats: AppStat[]) => {
-            if (period === "day") return stats.filter((s) => s.date === today)
-            if (period === "week") return stats.filter((s) => s.date >= weekAgo)
-            return stats
+        return {
+            keys: (stats: AppStat[]) => {
+                if (period === "day") return stats.filter((s) => s.date === today)
+                if (period === "week") return stats.filter((s) => s.date >= weekAgo)
+                return stats
+            },
+            clicks: (stats: AppClickStat[]) => {
+                if (period === "day") return stats.filter((s) => s.date === today)
+                if (period === "week") return stats.filter((s) => s.date >= weekAgo)
+                return stats
+            },
         }
     }, [period])
 
     const keyData = useMemo(
-        () => computeAppTotals(filterByPeriod(appStats)),
+        () => computeAppTotals(filterByPeriod.keys(appStats)),
         [appStats, filterByPeriod],
     )
-    const clickData = useMemo(
-        () => computeAppTotals(filterByPeriod(clickStats)),
-        [clickStats, filterByPeriod],
-    )
+
+    // Aggregate left/right clicks per app across filtered dates
+    const clickData = useMemo(() => {
+        const map = new Map<string, { left: number; right: number }>()
+        for (const { app, left_clicks, right_clicks } of filterByPeriod.clicks(clickStats)) {
+            const prev = map.get(app) ?? { left: 0, right: 0 }
+            map.set(app, {
+                left: prev.left + left_clicks,
+                right: prev.right + right_clicks,
+            })
+        }
+        return map
+    }, [clickStats, filterByPeriod])
 
     // Merge: all apps that appear in either dataset
     const merged = useMemo(() => {
-        const clickMap = new Map(clickData.map((d) => [d.app, d.count]))
-        const all = keyData.map(({ app, count }) => ({
-            app,
-            keys: count,
-            clicks: clickMap.get(app) ?? 0,
-        }))
+        const all = keyData.map(({ app, count }) => {
+            const c = clickData.get(app) ?? { left: 0, right: 0 }
+            return { app, keys: count, left: c.left, right: c.right }
+        })
         // Apps with only clicks (no keystrokes)
-        for (const { app, count } of clickData) {
+        for (const [app, { left, right }] of clickData) {
             if (!all.find((d) => d.app === app)) {
-                all.push({ app, keys: 0, clicks: count })
+                all.push({ app, keys: 0, left, right })
             }
         }
         return all
-            .sort((a, b) => b.keys + b.clicks - (a.keys + a.clicks))
+            .sort((a, b) => (b.keys + b.left + b.right) - (a.keys + a.left + a.right))
             .slice(0, 10)
     }, [keyData, clickData])
 
-    const max = Math.max(...merged.map((d) => d.keys + d.clicks), 1)
+    const max = Math.max(...merged.map((d) => d.keys + d.left + d.right), 1)
 
     const periods: { id: AppPeriod; label: string }[] = [
         { id: "day", label: "Today" },
@@ -386,32 +400,34 @@ function AppBreakdownChart({
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
-                    {merged.map(({ app, keys, clicks }) => (
-                        <div key={app} className="flex items-center gap-2.5">
-                            <AppIcon app={app} />
-                            <span
-                                className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
-                                title={app}
-                            >
-                                {app}
-                            </span>
-                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
-                                <div
-                                    className="h-full bg-indigo-400 transition-all duration-500"
-                                    style={{ width: `${(keys / max) * 100}%` }}
-                                />
-                                <div
-                                    className="h-full bg-rose-400 transition-all duration-500"
-                                    style={{
-                                        width: `${(clicks / max) * 100}%`,
-                                    }}
-                                />
+                    {merged.map(({ app, keys, left, right }) => {
+                        const clicks = left + right
+                        const total = keys + clicks
+                        return (
+                            <div key={app} className="flex items-center gap-2.5">
+                                <AppIcon app={app} />
+                                <span
+                                    className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                                    title={app}
+                                >
+                                    {app}
+                                </span>
+                                <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                                    <div
+                                        className="h-full bg-indigo-400 transition-all duration-500"
+                                        style={{ width: `${(keys / max) * 100}%` }}
+                                    />
+                                    <div
+                                        className="h-full bg-rose-400 transition-all duration-500"
+                                        style={{ width: `${(clicks / max) * 100}%` }}
+                                    />
+                                </div>
+                                <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                    {total.toLocaleString()}
+                                </span>
                             </div>
-                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                                {(keys + clicks).toLocaleString()}
-                            </span>
-                        </div>
-                    ))}
+                        )
+                    })}
                 </div>
             )}
         </div>
@@ -493,7 +509,7 @@ function StatisticsSection({
 }: {
     stats: DayStat[]
     appStats: AppStat[]
-    clickStats: AppStat[]
+    clickStats: AppClickStat[]
 }) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = new Date().toISOString().slice(0, 10)
@@ -864,7 +880,7 @@ export default function Settings() {
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
-    const [clickStats, setClickStats] = useState<AppStat[]>([])
+    const [clickStats, setClickStats] = useState<AppClickStat[]>([])
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -907,20 +923,34 @@ export default function Settings() {
         const unlistenClick = listen<{ app: string; button: number }>(
             "click",
             (e) => {
+                const { app, button } = e.payload
+                // Only track left (0) and right (1) clicks
+                if (button !== 0 && button !== 1) return
                 setClickStats((prev) => {
-                    const exists = prev.some(
-                        (s) => s.date === today && s.app === e.payload.app,
+                    const idx = prev.findIndex(
+                        (s) => s.date === today && s.app === app,
                     )
-                    if (exists) {
-                        return prev.map((s) =>
-                            s.date === today && s.app === e.payload.app
-                                ? { ...s, count: s.count + 1 }
+                    if (idx >= 0) {
+                        return prev.map((s, i) =>
+                            i === idx
+                                ? {
+                                      ...s,
+                                      left_clicks:
+                                          s.left_clicks + (button === 0 ? 1 : 0),
+                                      right_clicks:
+                                          s.right_clicks + (button === 1 ? 1 : 0),
+                                  }
                                 : s,
                         )
                     }
                     return [
                         ...prev,
-                        { date: today, app: e.payload.app, count: 1 },
+                        {
+                            date: today,
+                            app,
+                            left_clicks: button === 0 ? 1 : 0,
+                            right_clicks: button === 1 ? 1 : 0,
+                        },
                     ]
                 })
             },
