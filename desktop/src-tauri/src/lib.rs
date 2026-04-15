@@ -149,13 +149,13 @@ mod app_icon {
 
     fn find_app(app_name: &str) -> Option<String> {
         let home = dirs::home_dir()?;
-        let dirs = [
+        let search_dirs = [
             "/Applications".to_string(),
             "/System/Applications".to_string(),
             "/System/Applications/Utilities".to_string(),
             format!("{}/Applications", home.display()),
         ];
-        dirs.iter().find_map(|dir| {
+        search_dirs.iter().find_map(|dir| {
             let path = format!("{}/{}.app", dir, app_name);
             std::path::Path::new(&path).exists().then_some(path)
         })
@@ -170,39 +170,42 @@ mod app_icon {
         if !out.status.success() {
             return None;
         }
-        let name = String::from_utf8(out.stdout).ok()?.trim().to_string();
-        let name = if name.ends_with(".icns") {
-            name
+        let raw = String::from_utf8(out.stdout).ok()?;
+        let name = raw.trim();
+        let icon_name = if name.ends_with(".icns") {
+            name.to_string()
         } else {
             format!("{}.icns", name)
         };
-        let path = format!("{}/Contents/Resources/{}", app_path, name);
+        let path = format!("{}/Contents/Resources/{}", app_path, icon_name);
         std::path::Path::new(&path).exists().then_some(path)
     }
 
     fn fetch(app_name: &str) -> Option<String> {
         let app_path = find_app(app_name)?;
         let icon_path = icon_file(&app_path)?;
-        let tmp = format!(
-            "/tmp/kk-icon-{}.png",
-            app_name.replace(|c: char| !c.is_alphanumeric(), "_")
-        );
-        let ok = std::process::Command::new("sips")
+        let safe_name = app_name.replace(|c: char| !c.is_alphanumeric(), "_");
+        let tmp = format!("/tmp/kk-icon-{}.png", safe_name);
+        let success = std::process::Command::new("sips")
             .args([
-                "-s", "format", "png",
+                "-s",
+                "format",
+                "png",
                 &icon_path,
-                "--out", &tmp,
-                "--resampleHeightWidth", "64", "64",
+                "--out",
+                &tmp,
+                "--resampleHeightWidth",
+                "64",
+                "64",
             ])
             .output()
             .ok()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
-        if !ok {
+            .is_some_and(|o| o.status.success());
+        if !success {
             return None;
         }
         let bytes = std::fs::read(&tmp).ok()?;
-        let _ = std::fs::remove_file(&tmp);
+        std::fs::remove_file(&tmp).ok();
         Some(base64::engine::general_purpose::STANDARD.encode(bytes))
     }
 }
