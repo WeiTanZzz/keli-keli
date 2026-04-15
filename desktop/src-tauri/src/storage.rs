@@ -1,6 +1,6 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -8,9 +8,15 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct StatsData {
     pub counts: HashMap<String, u64>,
-    /// date → app_name → keystroke_count  (non-breaking: defaults to empty on old data)
+    /// date → app_name → keystroke_count
     #[serde(default)]
     pub app_counts: HashMap<String, HashMap<String, u64>>,
+    /// date → app_name → left_click_count
+    #[serde(default)]
+    pub app_left_click_counts: HashMap<String, HashMap<String, u64>>,
+    /// date → app_name → right_click_count
+    #[serde(default)]
+    pub app_right_click_counts: HashMap<String, HashMap<String, u64>>,
 }
 
 struct StorageInner {
@@ -64,6 +70,66 @@ impl Storage {
             .or_default()
             .entry(app.to_string())
             .or_insert(0) += 1;
+    }
+
+    /// button: 0 = left, 1 = right, anything else is ignored
+    pub fn increment_today_app_click(&self, app: &str, button: u8) {
+        let today = today_key();
+        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let map = match button {
+            0 => &mut data.app_left_click_counts,
+            1 => &mut data.app_right_click_counts,
+            _ => return,
+        };
+        *map.entry(today)
+            .or_default()
+            .entry(app.to_string())
+            .or_insert(0) += 1;
+    }
+
+    /// Returns (date, app, left_clicks, right_clicks) for the most recent `days` days.
+    pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64, u64)> {
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        // Collect all (date, app) pairs that appear in either map
+        let mut keys: HashSet<(String, String)> = HashSet::new();
+        for (date, apps) in &data.app_left_click_counts {
+            for app in apps.keys() {
+                keys.insert((date.clone(), app.clone()));
+            }
+        }
+        for (date, apps) in &data.app_right_click_counts {
+            for app in apps.keys() {
+                keys.insert((date.clone(), app.clone()));
+            }
+        }
+        // Limit to the most recent `days` distinct dates
+        let mut all_dates: Vec<String> = keys.iter().map(|(d, _)| d.clone()).collect();
+        all_dates.sort_by(|a, b| b.cmp(a));
+        all_dates.dedup();
+        all_dates.truncate(days);
+        let cutoff = all_dates.last().cloned().unwrap_or_default();
+
+        let mut entries: Vec<(String, String, u64, u64)> = keys
+            .into_iter()
+            .filter(|(date, _)| date.as_str() >= cutoff.as_str())
+            .map(|(date, app)| {
+                let left = data
+                    .app_left_click_counts
+                    .get(&date)
+                    .and_then(|m| m.get(&app))
+                    .copied()
+                    .unwrap_or(0);
+                let right = data
+                    .app_right_click_counts
+                    .get(&date)
+                    .and_then(|m| m.get(&app))
+                    .copied()
+                    .unwrap_or(0);
+                (date, app, left, right)
+            })
+            .collect();
+        entries.sort_by(|a, b| b.0.cmp(&a.0).then((b.2 + b.3).cmp(&(a.2 + a.3))));
+        entries
     }
 
     pub fn today_count(&self) -> u64 {
@@ -222,6 +288,112 @@ mod tests {
             h.join().unwrap();
         }
         assert_eq!(s.today_count(), 100);
+    }
+
+    #[test]
+    fn mouse_clicks_tracked_separately_from_keystrokes() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app("Safari");
+        s.increment_today_app("Safari");
+        s.increment_today_app_click("Safari", 0); // left click
+
+        let key_stats = s.get_app_stats(7);
+        let click_stats = s.get_app_click_stats(7);
+
+        let key_count = key_stats
+            .iter()
+            .find(|(_, a, _)| a == "Safari")
+            .map(|(_, _, c)| *c)
+            .unwrap();
+        let (left, right) = click_stats
+            .iter()
+            .find(|(_, a, _, _)| a == "Safari")
+            .map(|(_, _, l, r)| (*l, *r))
+            .unwrap();
+        assert_eq!(key_count, 2);
+        assert_eq!(left, 1);
+        assert_eq!(right, 0);
+    }
+
+    #[test]
+    fn left_and_right_clicks_tracked_independently() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app_click("Finder", 0); // left
+        s.increment_today_app_click("Finder", 0); // left
+        s.increment_today_app_click("Finder", 1); // right
+
+        let click_stats = s.get_app_click_stats(7);
+        let (left, right) = click_stats
+            .iter()
+            .find(|(_, a, _, _)| a == "Finder")
+            .map(|(_, _, l, r)| (*l, *r))
+            .unwrap();
+        assert_eq!(left, 2);
+        assert_eq!(right, 1);
+    }
+
+    #[test]
+    fn mouse_clicks_persist_across_reload() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        let s = Storage::load_from(path.clone());
+        s.increment_today_app_click("Finder", 0);
+        s.increment_today_app_click("Finder", 1);
+        s.save();
+
+        let s2 = Storage::load_from(path);
+        let click_stats = s2.get_app_click_stats(7);
+        let (left, right) = click_stats
+            .iter()
+            .find(|(_, a, _, _)| a == "Finder")
+            .map(|(_, _, l, r)| (*l, *r))
+            .unwrap();
+        assert_eq!(left, 1);
+        assert_eq!(right, 1);
+    }
+
+    #[test]
+    fn middle_and_unknown_button_clicks_are_ignored() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app_click("Safari", 2); // middle — should be ignored
+        s.increment_today_app_click("Safari", 99); // unknown — should be ignored
+
+        let click_stats = s.get_app_click_stats(7);
+        assert!(
+            click_stats.is_empty(),
+            "buttons other than 0/1 should not be recorded"
+        );
+    }
+
+    #[test]
+    fn get_app_click_stats_truncates_to_most_recent_n_days() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        // Manually build app_left_click_counts across 5 dates
+        let mut left: HashMap<String, HashMap<String, u64>> = HashMap::new();
+        for i in 1u64..=5 {
+            let mut apps = HashMap::new();
+            apps.insert("Chrome".to_string(), i * 10);
+            left.insert(format!("2024-01-{i:02}"), apps);
+        }
+        let json = serde_json::to_string_pretty(&StatsData {
+            app_left_click_counts: left,
+            ..Default::default()
+        })
+        .unwrap();
+        fs::write(&path, json).unwrap();
+
+        let s = Storage::load_from(path);
+        // Request only 3 most-recent days (01-03, 01-04, 01-05)
+        let stats = s.get_app_click_stats(3);
+        let dates: Vec<_> = stats.iter().map(|(d, _, _, _)| d.as_str()).collect();
+        assert!(
+            dates.iter().all(|d| *d >= "2024-01-03"),
+            "only the 3 most recent dates should appear, got: {dates:?}"
+        );
+        assert_eq!(stats.len(), 3, "expected 3 entries, got {}", stats.len());
     }
 
     // This test verifies that a poisoned Mutex does NOT cause a panic.

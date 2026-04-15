@@ -49,3 +49,10 @@
     animation: floatUp 0.75s ease-out forwards;
     white-space: nowrap;
 }
+
+/* Mouse click variant — rose glow instead of purple */
+.plus-one-click {
+    text-shadow:
+        0 0 12px rgba(251, 113, 133, 1),
+        0 1px 4px rgba(0, 0, 0, 0.5);
+}

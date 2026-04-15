@@ -1,7 +1,13 @@
 import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { type AppStat, api, type Config, type DayStat } from "@/api"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+    type AppClickStat,
+    type AppStat,
+    api,
+    type Config,
+    type DayStat,
+} from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -56,22 +62,56 @@ function computeStreak(stats: DayStat[]): number {
     return streak
 }
 
-function computeDayOfWeekAvg(
-    stats: DayStat[],
-): { label: string; avg: number }[] {
-    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    const sums = new Array(7).fill(0)
-    const counts = new Array(7).fill(0)
-    for (const s of stats) {
-        if (s.count === 0) continue
-        const dow = (new Date(`${s.date}T12:00:00`).getDay() + 6) % 7
-        sums[dow] += s.count
-        counts[dow]++
-    }
-    return labels.map((label, i) => ({
-        label,
-        avg: counts[i] > 0 ? Math.round(sums[i] / counts[i]) : 0,
-    }))
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+function last7Days(): { date: string; label: string; isToday: boolean }[] {
+    return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const date = d.toISOString().slice(0, 10)
+        return {
+            date,
+            label: i === 0 ? "Today" : DOW[d.getDay()],
+            isToday: i === 0,
+        }
+    })
+}
+
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
+
+function Tip({
+    children,
+    content,
+}: {
+    children: React.ReactNode
+    content: React.ReactNode
+}) {
+    const ref = useRef<HTMLDivElement>(null)
+    const [rect, setRect] = useState<DOMRect | null>(null)
+
+    return (
+        <div
+            ref={ref}
+            onMouseEnter={() =>
+                setRect(ref.current?.getBoundingClientRect() ?? null)
+            }
+            onMouseLeave={() => setRect(null)}
+        >
+            {children}
+            {rect && (
+                <div
+                    className="fixed z-[9999] -translate-x-1/2 bg-zinc-800/95 text-white text-[10px] rounded-md px-2 py-1 whitespace-nowrap pointer-events-none shadow-lg"
+                    style={{
+                        left: rect.left + rect.width / 2,
+                        top: rect.top - 6,
+                        transform: "translate(-50%, -100%)",
+                    }}
+                >
+                    {content}
+                </div>
+            )}
+        </div>
+    )
 }
 
 // ─── Chart components ─────────────────────────────────────────────────────────
@@ -174,27 +214,70 @@ function AppIcon({ app }: { app: string }) {
 
 function DailyBarChart({
     stats,
+    clickStats,
     selectedDate,
     onSelectDate,
 }: {
     stats: DayStat[]
+    clickStats: AppClickStat[]
     selectedDate: string | null
     onSelectDate: (date: string | null) => void
 }) {
     const recent = useMemo(() => stats.slice(-30), [stats])
-    const max = useMemo(
-        () => Math.max(...recent.map((s) => s.count), 1),
-        [recent],
-    )
     const today = new Date().toISOString().slice(0, 10)
     const displayDate = selectedDate ?? today
 
+    // Daily click totals aggregated from per-app data
+    const dailyClicks = useMemo(() => {
+        const map = new Map<string, number>()
+        for (const s of clickStats) {
+            map.set(
+                s.date,
+                (map.get(s.date) ?? 0) + s.left_clicks + s.right_clicks,
+            )
+        }
+        return map
+    }, [clickStats])
+
+    const max = useMemo(
+        () =>
+            Math.max(
+                ...recent.map((s) => s.count + (dailyClicks.get(s.date) ?? 0)),
+                1,
+            ),
+        [recent, dailyClicks],
+    )
+
+    const [hovered, setHovered] = useState<string | null>(null)
+    const infoDate = hovered ?? displayDate
+    const infoKeys = recent.find((s) => s.date === infoDate)?.count ?? 0
+    const infoClicks = dailyClicks.get(infoDate) ?? 0
+
     return (
         <div className="flex flex-col gap-1.5">
+            {/* Hover info line */}
+            <div className="flex items-center gap-3 h-4 text-[10px]">
+                <span className="text-zinc-400">{infoDate}</span>
+                <span className="flex items-center gap-1 text-zinc-500">
+                    <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                    {infoKeys.toLocaleString()} keys
+                </span>
+                {infoClicks > 0 && (
+                    <span className="flex items-center gap-1 text-zinc-500">
+                        <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                        {infoClicks.toLocaleString()} clicks
+                    </span>
+                )}
+            </div>
+
             {/* Bars */}
             <div className="flex items-end gap-0.5 h-20">
                 {recent.map((s) => {
-                    const pct = (s.count / max) * 100
+                    const clicks = dailyClicks.get(s.date) ?? 0
+                    const total = s.count + clicks
+                    const totalPct = (total / max) * 100
+                    const keyFrac = total > 0 ? s.count / total : 1
+                    const clickFrac = 1 - keyFrac
                     const isToday = s.date === today
                     const isSelected = s.date === displayDate
                     const dow = new Date(`${s.date}T12:00:00`).getDay()
@@ -208,26 +291,45 @@ function DailyBarChart({
                                     s.date === selectedDate ? null : s.date,
                                 )
                             }
+                            onMouseEnter={() => setHovered(s.date)}
+                            onMouseLeave={() => setHovered(null)}
                         >
                             <div
                                 className={cn(
-                                    "w-full rounded-sm transition-all duration-150",
+                                    "w-full rounded-sm overflow-hidden flex flex-col-reverse transition-all duration-150",
                                     isSelected
                                         ? "opacity-100"
                                         : "opacity-60 group-hover:opacity-90",
-                                    isToday
-                                        ? "bg-indigo-500"
-                                        : isSelected
-                                          ? "bg-zinc-500"
-                                          : isWeekend
-                                            ? "bg-zinc-300"
-                                            : "bg-zinc-200",
                                 )}
                                 style={{
-                                    height: `${pct}%`,
-                                    minHeight: s.count ? 2 : 0,
+                                    height: `${totalPct}%`,
+                                    minHeight: total ? 2 : 0,
                                 }}
-                            />
+                            >
+                                {/* Keys segment (bottom) */}
+                                <div
+                                    className={cn(
+                                        "w-full shrink-0",
+                                        isToday
+                                            ? "bg-indigo-500"
+                                            : isSelected
+                                              ? "bg-zinc-500"
+                                              : isWeekend
+                                                ? "bg-zinc-300"
+                                                : "bg-zinc-200",
+                                    )}
+                                    style={{ height: `${keyFrac * 100}%` }}
+                                />
+                                {/* Clicks segment (top) */}
+                                {clicks > 0 && (
+                                    <div
+                                        className="w-full shrink-0 bg-rose-400"
+                                        style={{
+                                            height: `${clickFrac * 100}%`,
+                                        }}
+                                    />
+                                )}
+                            </div>
                         </div>
                     )
                 })}
@@ -260,55 +362,187 @@ function DailyBarChart({
     )
 }
 
-function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
-    const dowData = useMemo(() => computeDayOfWeekAvg(stats), [stats])
-    const max = useMemo(
-        () => Math.max(...dowData.map((d) => d.avg), 1),
-        [dowData],
+function Last7DaysChart({
+    stats,
+    clickStats,
+}: {
+    stats: DayStat[]
+    clickStats: AppClickStat[]
+}) {
+    const days = useMemo(() => last7Days(), [])
+
+    const keyMap = useMemo(
+        () => new Map(stats.map((s) => [s.date, s.count])),
+        [stats],
     )
+    const clickMap = useMemo(() => {
+        const m = new Map<string, number>()
+        for (const s of clickStats) {
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
+        }
+        return m
+    }, [clickStats])
+
+    const rows = useMemo(
+        () =>
+            days.map(({ date, label, isToday }) => ({
+                date,
+                label,
+                isToday,
+                keys: keyMap.get(date) ?? 0,
+                clicks: clickMap.get(date) ?? 0,
+            })),
+        [days, keyMap, clickMap],
+    )
+
+    const max = useMemo(
+        () => Math.max(...rows.map((r) => r.keys + r.clicks), 1),
+        [rows],
+    )
+
     return (
         <div className="flex flex-col gap-2">
-            {dowData.map(({ label, avg }) => (
-                <div key={label} className="flex items-center gap-2.5">
-                    <span className="text-[11px] text-zinc-400 w-7 shrink-0">
-                        {label}
-                    </span>
-                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                            style={{ width: `${(avg / max) * 100}%` }}
-                        />
-                    </div>
-                    <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                        {avg > 0 ? avg.toLocaleString() : "—"}
-                    </span>
-                </div>
-            ))}
+            {rows.map(({ date, label, isToday, keys, clicks }) => {
+                const total = keys + clicks
+                return (
+                    <Tip
+                        key={date}
+                        content={
+                            total > 0 ? (
+                                <span className="flex gap-2.5">
+                                    <span className="font-medium">{date}</span>
+                                    {keys > 0 && (
+                                        <span className="flex items-center gap-1">
+                                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                                            {keys.toLocaleString()} keys
+                                        </span>
+                                    )}
+                                    {clicks > 0 && (
+                                        <span className="flex items-center gap-1">
+                                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                                            {clicks.toLocaleString()} clicks
+                                        </span>
+                                    )}
+                                </span>
+                            ) : (
+                                <span>{date} · no data</span>
+                            )
+                        }
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <span
+                                className={cn(
+                                    "text-[11px] w-10 shrink-0",
+                                    isToday
+                                        ? "text-indigo-500 font-semibold"
+                                        : "text-zinc-400",
+                                )}
+                            >
+                                {label}
+                            </span>
+                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                                <div
+                                    className={cn(
+                                        "h-full transition-all duration-500",
+                                        isToday
+                                            ? "bg-indigo-500"
+                                            : "bg-indigo-400",
+                                    )}
+                                    style={{ width: `${(keys / max) * 100}%` }}
+                                />
+                                <div
+                                    className="h-full bg-rose-400 transition-all duration-500"
+                                    style={{
+                                        width: `${(clicks / max) * 100}%`,
+                                    }}
+                                />
+                            </div>
+                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                {total > 0 ? total.toLocaleString() : "—"}
+                            </span>
+                        </div>
+                    </Tip>
+                )
+            })}
         </div>
     )
 }
 
 type AppPeriod = "day" | "week" | "all"
 
-function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
-    const [period, setPeriod] = useState<AppPeriod>("all")
+function AppBreakdownChart({
+    appStats,
+    clickStats,
+}: {
+    appStats: AppStat[]
+    clickStats: AppClickStat[]
+}) {
+    const [period, setPeriod] = useState<AppPeriod>("day")
 
-    const filteredStats = useMemo(() => {
+    const filterByPeriod = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10)
-        if (period === "day") {
-            return appStats.filter((s) => s.date === today)
+        const weekAgo = new Date(Date.now() - 7 * 86400000)
+            .toISOString()
+            .slice(0, 10)
+        return {
+            keys: (stats: AppStat[]) => {
+                if (period === "day")
+                    return stats.filter((s) => s.date === today)
+                if (period === "week")
+                    return stats.filter((s) => s.date >= weekAgo)
+                return stats
+            },
+            clicks: (stats: AppClickStat[]) => {
+                if (period === "day")
+                    return stats.filter((s) => s.date === today)
+                if (period === "week")
+                    return stats.filter((s) => s.date >= weekAgo)
+                return stats
+            },
         }
-        if (period === "week") {
-            const weekAgo = new Date(Date.now() - 7 * 86400000)
-                .toISOString()
-                .slice(0, 10)
-            return appStats.filter((s) => s.date >= weekAgo)
-        }
-        return appStats
-    }, [appStats, period])
+    }, [period])
 
-    const data = useMemo(() => computeAppTotals(filteredStats), [filteredStats])
-    const max = Math.max(...data.map((d) => d.count), 1)
+    const keyData = useMemo(
+        () => computeAppTotals(filterByPeriod.keys(appStats)),
+        [appStats, filterByPeriod],
+    )
+
+    // Aggregate left/right clicks per app across filtered dates
+    const clickData = useMemo(() => {
+        const map = new Map<string, { left: number; right: number }>()
+        for (const { app, left_clicks, right_clicks } of filterByPeriod.clicks(
+            clickStats,
+        )) {
+            const prev = map.get(app) ?? { left: 0, right: 0 }
+            map.set(app, {
+                left: prev.left + left_clicks,
+                right: prev.right + right_clicks,
+            })
+        }
+        return map
+    }, [clickStats, filterByPeriod])
+
+    // Merge: all apps that appear in either dataset
+    const merged = useMemo(() => {
+        const all = keyData.map(({ app, count }) => {
+            const c = clickData.get(app) ?? { left: 0, right: 0 }
+            return { app, keys: count, left: c.left, right: c.right }
+        })
+        // Apps with only clicks (no keystrokes)
+        for (const [app, { left, right }] of clickData) {
+            if (!all.find((d) => d.app === app)) {
+                all.push({ app, keys: 0, left, right })
+            }
+        }
+        return all
+            .sort(
+                (a, b) =>
+                    b.keys + b.left + b.right - (a.keys + a.left + a.right),
+            )
+            .slice(0, 10)
+    }, [keyData, clickData])
+
+    const max = Math.max(...merged.map((d) => d.keys + d.left + d.right), 1)
 
     const periods: { id: AppPeriod; label: string }[] = [
         { id: "day", label: "Today" },
@@ -318,51 +552,104 @@ function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
 
     return (
         <div className="flex flex-col gap-3">
-            {/* Period selector */}
-            <div className="flex gap-1">
-                {periods.map(({ id, label }) => (
-                    <button
-                        key={id}
-                        type="button"
-                        onClick={() => setPeriod(id)}
-                        className={cn(
-                            "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
-                            period === id
-                                ? "bg-indigo-500 text-white font-medium"
-                                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
-                        )}
-                    >
-                        {label}
-                    </button>
-                ))}
+            {/* Period selector + legend */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-1">
+                    {periods.map(({ id, label }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            onClick={() => setPeriod(id)}
+                            className={cn(
+                                "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
+                                period === id
+                                    ? "bg-indigo-500 text-white font-medium"
+                                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                            )}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2.5 text-[10px] text-zinc-400">
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-sm bg-indigo-400" />
+                        Keys
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-sm bg-rose-400" />
+                        Clicks
+                    </span>
+                </div>
             </div>
 
-            {data.length === 0 ? (
+            {merged.length === 0 ? (
                 <p className="text-xs text-zinc-400 text-center py-1">
                     No data yet — start typing!
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
-                    {data.map(({ app, count }) => (
-                        <div key={app} className="flex items-center gap-2.5">
-                            <AppIcon app={app} />
-                            <span
-                                className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
-                                title={app}
+                    {merged.map(({ app, keys, left, right }) => {
+                        const clicks = left + right
+                        const total = keys + clicks
+                        return (
+                            <Tip
+                                key={app}
+                                content={
+                                    <span className="flex gap-2.5">
+                                        <span className="font-medium">
+                                            {app}
+                                        </span>
+                                        {keys > 0 && (
+                                            <span className="flex items-center gap-1">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                                                {keys.toLocaleString()} keys
+                                            </span>
+                                        )}
+                                        {left > 0 && (
+                                            <span className="flex items-center gap-1">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                                                {left.toLocaleString()} L
+                                            </span>
+                                        )}
+                                        {right > 0 && (
+                                            <span className="flex items-center gap-1">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
+                                                {right.toLocaleString()} R
+                                            </span>
+                                        )}
+                                    </span>
+                                }
                             >
-                                {app}
-                            </span>
-                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                                    style={{ width: `${(count / max) * 100}%` }}
-                                />
-                            </div>
-                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                                {count.toLocaleString()}
-                            </span>
-                        </div>
-                    ))}
+                                <div className="flex items-center gap-2.5">
+                                    <AppIcon app={app} />
+                                    <span
+                                        className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                                        title={app}
+                                    >
+                                        {app}
+                                    </span>
+                                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                                        <div
+                                            className="h-full bg-indigo-400 transition-all duration-500"
+                                            style={{
+                                                width: `${(keys / max) * 100}%`,
+                                            }}
+                                        />
+                                        <div
+                                            className="h-full bg-rose-400 transition-all duration-500"
+                                            style={{
+                                                width: `${(clicks / max) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
+                                    <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                        {total.toLocaleString()}
+                                    </span>
+                                </div>
+                            </Tip>
+                        )
+                    })}
                 </div>
             )}
         </div>
@@ -379,18 +666,16 @@ function StatChip({
     sub?: string
 }) {
     return (
-        <div className="flex flex-col gap-1 p-3">
-            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+        <div className="flex flex-col gap-1 px-3 py-3">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none mb-1">
                 {label}
             </span>
             <span className="text-xl font-bold text-zinc-800 tabular-nums leading-none">
                 {value}
             </span>
-            {sub && (
-                <span className="text-[10px] text-zinc-400 leading-none">
-                    {sub}
-                </span>
-            )}
+            <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
+                {sub ?? ""}
+            </span>
         </div>
     )
 }
@@ -429,9 +714,12 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return (
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-            {children}
-        </h2>
+        <div className="flex items-center gap-2 mb-1">
+            <span className="w-1 h-3.5 rounded-full bg-indigo-400 shrink-0" />
+            <h2 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">
+                {children}
+            </h2>
+        </div>
     )
 }
 
@@ -440,57 +728,90 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function StatisticsSection({
     stats,
     appStats,
+    clickStats,
 }: {
     stats: DayStat[]
     appStats: AppStat[]
+    clickStats: AppClickStat[]
 }) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = new Date().toISOString().slice(0, 10)
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
 
-    const todayCount = useMemo(
-        () => stats.find((s) => s.date === today)?.count ?? 0,
-        [stats, today],
+    // Daily click totals (left + right) per date
+    const dailyClicks = useMemo(() => {
+        const m = new Map<string, number>()
+        for (const s of clickStats) {
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
+        }
+        return m
+    }, [clickStats])
+
+    const todayTotal = useMemo(
+        () =>
+            (stats.find((s) => s.date === today)?.count ?? 0) +
+            (dailyClicks.get(today) ?? 0),
+        [stats, dailyClicks, today],
     )
-    const yesterdayCount = useMemo(
-        () => stats.find((s) => s.date === yesterday)?.count ?? 0,
-        [stats, yesterday],
+    const yesterdayTotal = useMemo(
+        () =>
+            (stats.find((s) => s.date === yesterday)?.count ?? 0) +
+            (dailyClicks.get(yesterday) ?? 0),
+        [stats, dailyClicks, yesterday],
     )
 
-    // Hero: show selected date's data (or today if none selected)
+    // Hero: keys + clicks for selected date (or today)
     const isViewingToday = selectedDate === null || selectedDate === today
     const heroCount = useMemo(() => {
-        if (isViewingToday) return todayCount
-        return stats.find((s) => s.date === selectedDate)?.count ?? 0
-    }, [stats, selectedDate, isViewingToday, todayCount])
+        if (isViewingToday) return todayTotal
+        const d = selectedDate ?? today
+        return (
+            (stats.find((s) => s.date === d)?.count ?? 0) +
+            (dailyClicks.get(d) ?? 0)
+        )
+    }, [stats, dailyClicks, selectedDate, isViewingToday, todayTotal, today])
 
-    // Compare selected date vs today; or today vs yesterday
+    // Trend: compare total activity (keys + clicks)
     const trendPct = useMemo(() => {
         if (isViewingToday) {
-            return yesterdayCount > 0
+            return yesterdayTotal > 0
                 ? Math.round(
-                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
+                      ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100,
                   )
                 : null
         }
-        return todayCount > 0
-            ? Math.round(((heroCount - todayCount) / todayCount) * 100)
+        return todayTotal > 0
+            ? Math.round(((heroCount - todayTotal) / todayTotal) * 100)
             : null
-    }, [isViewingToday, todayCount, yesterdayCount, heroCount])
+    }, [isViewingToday, todayTotal, yesterdayTotal, heroCount])
 
     const heroLabel = isViewingToday
-        ? "keystrokes today"
-        : `keystrokes · ${selectedDate}`
+        ? "actions today"
+        : `actions · ${selectedDate}`
+
+    // All-dates total actions (keys + clicks) per date
+    const dailyTotals = useMemo(() => {
+        const allDates = new Set([
+            ...stats.map((s) => s.date),
+            ...dailyClicks.keys(),
+        ])
+        return Array.from(allDates).map((date) => ({
+            date,
+            total:
+                (stats.find((s) => s.date === date)?.count ?? 0) +
+                (dailyClicks.get(date) ?? 0),
+        }))
+    }, [stats, dailyClicks])
 
     const daysWithData = useMemo(
-        () => stats.filter((s) => s.count > 0),
-        [stats],
+        () => dailyTotals.filter((d) => d.total > 0),
+        [dailyTotals],
     )
     const avgCount = useMemo(
         () =>
             daysWithData.length > 0
                 ? Math.round(
-                      daysWithData.reduce((sum, s) => sum + s.count, 0) /
+                      daysWithData.reduce((sum, d) => sum + d.total, 0) /
                           daysWithData.length,
                   )
                 : 0,
@@ -498,103 +819,115 @@ function StatisticsSection({
     )
     const bestDay = useMemo(
         () =>
-            stats.reduce((best, s) => (s.count > best.count ? s : best), {
+            dailyTotals.reduce((best, d) => (d.total > best.total ? d : best), {
                 date: "",
-                count: 0,
+                total: 0,
             }),
-        [stats],
+        [dailyTotals],
     )
     const streak = useMemo(() => computeStreak(stats), [stats])
     const allTimeTotal = useMemo(
-        () => stats.reduce((sum, s) => sum + s.count, 0),
-        [stats],
+        () => dailyTotals.reduce((sum, d) => sum + d.total, 0),
+        [dailyTotals],
     )
 
     return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>Statistics</SectionTitle>
-
+        <div className="flex flex-col gap-6">
             {/* Hero + 30-day chart */}
-            <Card>
-                <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
-                    <div className="flex items-baseline justify-between">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                {heroCount.toLocaleString()}
-                            </span>
-                            {trendPct !== null && (
-                                <span className="flex items-baseline gap-1">
-                                    <span
-                                        className={cn(
-                                            "text-xs font-medium tabular-nums",
-                                            trendPct >= 0
-                                                ? "text-emerald-500"
-                                                : "text-red-400",
-                                        )}
-                                    >
-                                        {trendPct >= 0 ? "+" : ""}
-                                        {trendPct}%
-                                    </span>
-                                    {!isViewingToday && (
-                                        <span className="text-[10px] text-zinc-400">
-                                            vs today
-                                        </span>
-                                    )}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>Activity</SectionTitle>
+                <Card>
+                    <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
+                        <div className="flex items-baseline justify-between">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-bold text-zinc-900 tabular-nums">
+                                    {heroCount.toLocaleString()}
                                 </span>
-                            )}
+                                {trendPct !== null && (
+                                    <span className="flex items-baseline gap-1">
+                                        <span
+                                            className={cn(
+                                                "text-xs font-medium tabular-nums",
+                                                trendPct >= 0
+                                                    ? "text-emerald-500"
+                                                    : "text-red-400",
+                                            )}
+                                        >
+                                            {trendPct >= 0 ? "+" : ""}
+                                            {trendPct}%
+                                        </span>
+                                        {!isViewingToday && (
+                                            <span className="text-[10px] text-zinc-400">
+                                                vs today
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-xs text-zinc-400">
+                                {heroLabel}
+                            </span>
                         </div>
-                        <span className="text-xs text-zinc-400">
-                            {heroLabel}
-                        </span>
+                        <DailyBarChart
+                            stats={stats}
+                            clickStats={clickStats}
+                            selectedDate={selectedDate}
+                            onSelectDate={setSelectedDate}
+                        />
                     </div>
-                    <DailyBarChart
-                        stats={stats}
-                        selectedDate={selectedDate}
-                        onSelectDate={setSelectedDate}
-                    />
-                </div>
-            </Card>
 
-            {/* Stat chips */}
-            <Card>
-                <div className="grid grid-cols-2 divide-x divide-zinc-100">
-                    <StatChip
-                        label="Daily avg"
-                        value={avgCount.toLocaleString()}
-                        sub="keystrokes"
-                    />
-                    <StatChip
-                        label="Best day"
-                        value={bestDay.count.toLocaleString()}
-                        sub={bestDay.date ? bestDay.date.slice(5) : undefined}
-                    />
-                </div>
-                <div className="grid grid-cols-2 divide-x divide-zinc-100 border-t border-zinc-100">
-                    <StatChip
-                        label="Streak"
-                        value={streak > 0 ? `${streak}d` : "—"}
-                        sub={streak > 0 ? "in a row" : "no streak"}
-                    />
-                    <StatChip
-                        label="All time"
-                        value={
-                            allTimeTotal >= 1_000_000
-                                ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
-                                : allTimeTotal >= 1_000
-                                  ? `${(allTimeTotal / 1_000).toFixed(1)}K`
-                                  : allTimeTotal.toLocaleString()
-                        }
-                        sub="keystrokes"
-                    />
-                </div>
-            </Card>
+                    {/* Stat chips — 4 columns inline */}
+                    <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
+                        <StatChip
+                            label="Daily avg"
+                            value={
+                                avgCount >= 1_000_000
+                                    ? `${(avgCount / 1_000_000).toFixed(1)}M`
+                                    : avgCount >= 1_000
+                                      ? `${(avgCount / 1_000).toFixed(1)}K`
+                                      : avgCount.toLocaleString()
+                            }
+                            sub="actions"
+                        />
+                        <StatChip
+                            label="Best day"
+                            value={
+                                bestDay.total >= 1_000_000
+                                    ? `${(bestDay.total / 1_000_000).toFixed(1)}M`
+                                    : bestDay.total >= 1_000
+                                      ? `${(bestDay.total / 1_000).toFixed(1)}K`
+                                      : bestDay.total.toLocaleString()
+                            }
+                            sub={
+                                bestDay.date ? bestDay.date.slice(5) : undefined
+                            }
+                        />
+                        <StatChip
+                            label="Streak"
+                            value={streak > 0 ? `${streak}d` : "—"}
+                            sub={streak > 0 ? "in a row" : "no streak"}
+                        />
+                        <StatChip
+                            label="All time"
+                            value={
+                                allTimeTotal >= 1_000_000
+                                    ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
+                                    : allTimeTotal >= 1_000
+                                      ? `${(allTimeTotal / 1_000).toFixed(1)}K`
+                                      : allTimeTotal.toLocaleString()
+                            }
+                            sub="actions"
+                        />
+                    </div>
+                </Card>
+            </div>
 
             {/* Day-of-week pattern */}
             <div className="flex flex-col gap-2">
-                <SectionTitle>By Day of Week</SectionTitle>
+                <SectionTitle>Last 7 Days</SectionTitle>
                 <Card>
-                    <div className="px-4 py-3">
-                        <DayOfWeekChart stats={stats} />
+                    <div className="px-4 py-4">
+                        <Last7DaysChart stats={stats} clickStats={clickStats} />
                     </div>
                 </Card>
             </div>
@@ -603,8 +936,11 @@ function StatisticsSection({
             <div className="flex flex-col gap-2">
                 <SectionTitle>By App</SectionTitle>
                 <Card>
-                    <div className="px-4 py-3">
-                        <AppBreakdownChart appStats={appStats} />
+                    <div className="px-4 py-4">
+                        <AppBreakdownChart
+                            appStats={appStats}
+                            clickStats={clickStats}
+                        />
                     </div>
                 </Card>
             </div>
@@ -810,6 +1146,7 @@ export default function Settings() {
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
+    const [clickStats, setClickStats] = useState<AppClickStat[]>([])
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -849,10 +1186,49 @@ export default function Settings() {
             },
         )
 
+        const unlistenClick = listen<{ app: string; button: number }>(
+            "click",
+            (e) => {
+                const { app, button } = e.payload
+                // Only track left (0) and right (1) clicks
+                if (button !== 0 && button !== 1) return
+                setClickStats((prev) => {
+                    const idx = prev.findIndex(
+                        (s) => s.date === today && s.app === app,
+                    )
+                    if (idx >= 0) {
+                        return prev.map((s, i) =>
+                            i === idx
+                                ? {
+                                      ...s,
+                                      left_clicks:
+                                          s.left_clicks +
+                                          (button === 0 ? 1 : 0),
+                                      right_clicks:
+                                          s.right_clicks +
+                                          (button === 1 ? 1 : 0),
+                                  }
+                                : s,
+                        )
+                    }
+                    return [
+                        ...prev,
+                        {
+                            date: today,
+                            app,
+                            left_clicks: button === 0 ? 1 : 0,
+                            right_clicks: button === 1 ? 1 : 0,
+                        },
+                    ]
+                })
+            },
+        )
+
         api.getConfig().then(setCfg)
         api.getAutostart().then(setAutostart)
         api.getStats(90).then(setStats)
         api.getAppStats(90).then(setAppStats)
+        api.getAppClickStats(90).then(setClickStats)
         api.checkUpdate()
             .then((info) => {
                 if (info.available && info.latest) {
@@ -874,6 +1250,7 @@ export default function Settings() {
 
         return () => {
             unlisten.then((f) => f())
+            unlistenClick.then((f) => f())
         }
     }, [])
 
@@ -952,7 +1329,11 @@ export default function Settings() {
             <main className="flex flex-col flex-1 min-w-0">
                 <div className="flex-1 overflow-y-auto p-5">
                     {active === "statistics" && (
-                        <StatisticsSection stats={stats} appStats={appStats} />
+                        <StatisticsSection
+                            stats={stats}
+                            appStats={appStats}
+                            clickStats={clickStats}
+                        />
                     )}
                     {active === "general" && cfg && (
                         <GeneralSection

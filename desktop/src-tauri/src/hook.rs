@@ -2,7 +2,14 @@ use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum KeyEvent {
-    KeyPress { app: String },
+    KeyPress {
+        app: String,
+    },
+    /// button: 0 = left, 1 = right, 2 = other/middle
+    MouseClick {
+        app: String,
+        button: u8,
+    },
 }
 
 pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
@@ -31,6 +38,9 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         type CFIndex = std::os::raw::c_long;
 
         const KEY_DOWN_MASK: u64 = 1 << 10;
+        // kCGEventLeftMouseDown=1, kCGEventRightMouseDown=3, kCGEventOtherMouseDown=25
+        const MOUSE_DOWN_MASK: u64 = (1 << 1) | (1 << 3) | (1 << 25);
+        const EVENT_MASK: u64 = KEY_DOWN_MASK | MOUSE_DOWN_MASK;
 
         #[link(name = "CoreGraphics", kind = "framework")]
         extern "C" {
@@ -113,14 +123,26 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     let app = frontmost_app_name();
                     let _ = tx.send(KeyEvent::KeyPress { app });
                 }
+            } else if event_type == 1 || event_type == 3 || event_type == 25 {
+                if let Some(tx) = SENDER.get() {
+                    let app = frontmost_app_name();
+                    // 1=left, 3=right, 25=other/middle
+                    let button = if event_type == 1 {
+                        0
+                    } else if event_type == 3 {
+                        1
+                    } else {
+                        2
+                    };
+                    let _ = tx.send(KeyEvent::MouseClick { app, button });
+                }
             }
             event
         }
 
         loop {
             unsafe {
-                let tap =
-                    CGEventTapCreate(0, 0, 1, KEY_DOWN_MASK, tap_callback, std::ptr::null_mut());
+                let tap = CGEventTapCreate(0, 0, 1, EVENT_MASK, tap_callback, std::ptr::null_mut());
                 if tap.is_null() {
                     static PROMPTED: std::sync::atomic::AtomicBool =
                         std::sync::atomic::AtomicBool::new(false);

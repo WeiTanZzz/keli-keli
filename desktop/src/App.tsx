@@ -2,20 +2,38 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useRef, useState } from "react"
 
+type PlusOneItem = { id: number; type: "key" | "left" | "right" | "middle" }
+
 export default function App() {
-    const [plusOnes, setPlusOnes] = useState<{ id: number }[]>([])
+    const [plusOnes, setPlusOnes] = useState<PlusOneItem[]>([])
     const idRef = useRef(0)
 
     useEffect(() => {
         const unlisten = listen<{ count: number }>("keystroke", () => {
             const id = ++idRef.current
-            setPlusOnes((prev) => [...prev, { id }])
+            setPlusOnes((prev) => [...prev, { id, type: "key" }])
             setTimeout(() => {
                 setPlusOnes((prev) => prev.filter((p) => p.id !== id))
             }, 750)
         })
+
+        const unlistenClick = listen<{ app: string; button: number }>(
+            "click",
+            (e) => {
+                const id = ++idRef.current
+                const button = e.payload.button
+                const type =
+                    button === 0 ? "left" : button === 1 ? "right" : "middle"
+                setPlusOnes((prev) => [...prev, { id, type }])
+                setTimeout(() => {
+                    setPlusOnes((prev) => prev.filter((p) => p.id !== id))
+                }, 750)
+            },
+        )
+
         return () => {
             unlisten.then((f) => f()).catch(() => {})
+            unlistenClick.then((f) => f()).catch(() => {})
         }
     }, [])
 
@@ -49,7 +67,10 @@ export default function App() {
             </span>
 
             {plusOnes.map((p) => (
-                <span key={p.id} className="plus-one">
+                <span
+                    key={p.id}
+                    className={`plus-one ${p.type !== "key" ? "plus-one-click" : ""}`}
+                >
                     +1
                 </span>
             ))}

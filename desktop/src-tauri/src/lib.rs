@@ -23,6 +23,13 @@ struct KeystrokePayload {
     app: String,
 }
 
+#[derive(serde::Serialize, Clone)]
+struct ClickPayload {
+    app: String,
+    /// 0 = left, 1 = right, 2 = other/middle
+    button: u8,
+}
+
 #[derive(serde::Serialize)]
 struct DayStat {
     date: String,
@@ -34,6 +41,14 @@ struct AppStat {
     date: String,
     app: String,
     count: u64,
+}
+
+#[derive(serde::Serialize)]
+struct AppClickStat {
+    date: String,
+    app: String,
+    left_clicks: u64,
+    right_clicks: u64,
 }
 
 #[derive(serde::Serialize)]
@@ -75,6 +90,20 @@ fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<Ap
         .get_app_stats(days)
         .into_iter()
         .map(|(date, app, count)| AppStat { date, app, count })
+        .collect()
+}
+
+#[tauri::command]
+fn get_app_click_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppClickStat> {
+    storage
+        .get_app_click_stats(days)
+        .into_iter()
+        .map(|(date, app, left_clicks, right_clicks)| AppClickStat {
+            date,
+            app,
+            left_clicks,
+            right_clicks,
+        })
         .collect()
 }
 
@@ -301,6 +330,7 @@ pub fn run() {
             save_config,
             get_stats,
             get_app_stats,
+            get_app_click_stats,
             get_autostart,
             set_autostart,
             check_update,
@@ -467,6 +497,25 @@ async fn key_loop(
         tokio::select! {
             event = key_rx.recv() => {
                 match event {
+                    Some(KeyEvent::MouseClick {
+                        app: ref app_name,
+                        button,
+                    }) => {
+                        storage.increment_today_app_click(app_name, button);
+                        app.emit(
+                            "click",
+                            ClickPayload {
+                                app: app_name.clone(),
+                                button,
+                            },
+                        )
+                        .ok();
+                        last_key = Instant::now();
+                        if last_flush.elapsed() >= flush_duration {
+                            storage.save();
+                            last_flush = Instant::now();
+                        }
+                    }
                     Some(KeyEvent::KeyPress { app: ref app_name }) => {
                         let count = storage.increment_today();
                         storage.increment_today_app(app_name);
