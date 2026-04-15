@@ -904,21 +904,27 @@ export default function Settings() {
             },
         )
 
-        const unlistenClick = listen<{ app: string }>("click", (e) => {
-            setClickStats((prev) => {
-                const exists = prev.some(
-                    (s) => s.date === today && s.app === e.payload.app,
-                )
-                if (exists) {
-                    return prev.map((s) =>
-                        s.date === today && s.app === e.payload.app
-                            ? { ...s, count: s.count + 1 }
-                            : s,
+        const unlistenClick = listen<{ app: string; button: number }>(
+            "click",
+            (e) => {
+                setClickStats((prev) => {
+                    const exists = prev.some(
+                        (s) => s.date === today && s.app === e.payload.app,
                     )
-                }
-                return [...prev, { date: today, app: e.payload.app, count: 1 }]
-            })
-        })
+                    if (exists) {
+                        return prev.map((s) =>
+                            s.date === today && s.app === e.payload.app
+                                ? { ...s, count: s.count + 1 }
+                                : s,
+                        )
+                    }
+                    return [
+                        ...prev,
+                        { date: today, app: e.payload.app, count: 1 },
+                    ]
+                })
+            },
+        )
 
         api.getConfig().then(setCfg)
         api.getAutostart().then(setAutostart)

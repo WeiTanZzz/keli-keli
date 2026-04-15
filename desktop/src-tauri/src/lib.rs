@@ -26,6 +26,8 @@ struct KeystrokePayload {
 #[derive(serde::Serialize, Clone)]
 struct ClickPayload {
     app: String,
+    /// 0 = left, 1 = right, 2 = other/middle
+    button: u8,
 }
 
 #[derive(serde::Serialize)]
@@ -482,9 +484,19 @@ async fn key_loop(
         tokio::select! {
             event = key_rx.recv() => {
                 match event {
-                    Some(KeyEvent::MouseClick { app: ref app_name }) => {
+                    Some(KeyEvent::MouseClick {
+                        app: ref app_name,
+                        button,
+                    }) => {
                         storage.increment_today_app_click(app_name);
-                        app.emit("click", ClickPayload { app: app_name.clone() }).ok();
+                        app.emit(
+                            "click",
+                            ClickPayload {
+                                app: app_name.clone(),
+                                button,
+                            },
+                        )
+                        .ok();
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
                             storage.save();

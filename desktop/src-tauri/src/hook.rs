@@ -3,7 +3,8 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub enum KeyEvent {
     KeyPress { app: String },
-    MouseClick { app: String },
+    /// button: 0 = left, 1 = right, 2 = other/middle
+    MouseClick { app: String, button: u8 },
 }
 
 pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
@@ -120,7 +121,15 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             } else if event_type == 1 || event_type == 3 || event_type == 25 {
                 if let Some(tx) = SENDER.get() {
                     let app = frontmost_app_name();
-                    let _ = tx.send(KeyEvent::MouseClick { app });
+                    // 1=left, 3=right, 25=other/middle
+                    let button = if event_type == 1 {
+                        0
+                    } else if event_type == 3 {
+                        1
+                    } else {
+                        2
+                    };
+                    let _ = tx.send(KeyEvent::MouseClick { app, button });
                 }
             }
             event
