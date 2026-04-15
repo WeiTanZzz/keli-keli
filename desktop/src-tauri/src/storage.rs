@@ -1,6 +1,6 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -91,7 +91,7 @@ impl Storage {
     pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64, u64)> {
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         // Collect all (date, app) pairs that appear in either map
-        let mut keys: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+        let mut keys: HashSet<(String, String)> = HashSet::new();
         for (date, apps) in &data.app_left_click_counts {
             for app in apps.keys() {
                 keys.insert((date.clone(), app.clone()));
