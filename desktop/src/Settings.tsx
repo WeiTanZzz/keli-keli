@@ -76,35 +76,93 @@ function computeDayOfWeekAvg(
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
+function getAppColor(app: string): string {
+    const colors = [
+        "bg-blue-400",
+        "bg-emerald-400",
+        "bg-purple-400",
+        "bg-orange-400",
+        "bg-pink-400",
+        "bg-teal-400",
+        "bg-amber-400",
+        "bg-red-400",
+        "bg-cyan-400",
+        "bg-indigo-400",
+    ]
+    let hash = 0
+    for (let i = 0; i < app.length; i++) {
+        hash = (hash * 31 + app.charCodeAt(i)) & 0x7fffffff
+    }
+    return colors[hash % colors.length]
+}
+
+function AppIcon({ app }: { app: string }) {
+    return (
+        <div
+            className={cn(
+                "w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+                getAppColor(app),
+            )}
+        >
+            {app.charAt(0).toUpperCase()}
+        </div>
+    )
+}
+
 function DailyBarChart({ stats }: { stats: DayStat[] }) {
+    const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const recent = useMemo(() => stats.slice(-30), [stats])
     const max = useMemo(
         () => Math.max(...recent.map((s) => s.count), 1),
         [recent],
     )
     const today = new Date().toISOString().slice(0, 10)
+
+    const displayDate = selectedDate ?? today
+    const displayStat = recent.find((s) => s.date === displayDate)
+
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
+            {/* Selected / today info */}
+            <div className="flex items-baseline justify-between">
+                <span className="text-[11px] font-medium text-zinc-500">
+                    {displayDate === today ? "Today" : displayDate}
+                </span>
+                <span className="text-[11px] tabular-nums text-zinc-400">
+                    {(displayStat?.count ?? 0).toLocaleString()} keystrokes
+                </span>
+            </div>
+
+            {/* Bars */}
             <div className="flex items-end gap-0.5 h-20">
                 {recent.map((s) => {
                     const pct = (s.count / max) * 100
                     const isToday = s.date === today
+                    const isSelected = s.date === displayDate
                     const dow = new Date(`${s.date}T12:00:00`).getDay()
                     const isWeekend = dow === 0 || dow === 6
                     return (
                         <div
                             key={s.date}
-                            title={`${s.date}: ${s.count.toLocaleString()}`}
-                            className="flex flex-1 flex-col justify-end h-full group cursor-default"
+                            className="flex flex-1 flex-col justify-end h-full group cursor-pointer"
+                            onClick={() =>
+                                setSelectedDate(
+                                    s.date === selectedDate ? null : s.date,
+                                )
+                            }
                         >
                             <div
                                 className={cn(
-                                    "w-full rounded-sm transition-all duration-150 group-hover:opacity-70",
-                                    isToday
+                                    "w-full rounded-sm transition-all duration-150",
+                                    isSelected
+                                        ? "opacity-100"
+                                        : "opacity-60 group-hover:opacity-90",
+                                    isToday || isSelected
                                         ? "bg-indigo-500"
                                         : isWeekend
                                           ? "bg-zinc-300"
                                           : "bg-zinc-200",
+                                    isSelected && !isToday && "bg-zinc-500",
                                 )}
                                 style={{
                                     height: `${pct}%`,
@@ -115,9 +173,31 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
                     )
                 })}
             </div>
-            <div className="flex justify-between text-[10px] text-zinc-400">
-                <span>{recent[0]?.date.slice(5)}</span>
-                <span>today</span>
+
+            {/* Date labels — sparse: first, every 7, last */}
+            <div className="flex items-start gap-0.5">
+                {recent.map((s, i) => {
+                    const showLabel =
+                        i === 0 ||
+                        i === recent.length - 1 ||
+                        i % 7 === 0
+                    return (
+                        <div key={s.date} className="flex-1 text-center">
+                            {showLabel && (
+                                <span
+                                    className={cn(
+                                        "text-[9px] leading-none",
+                                        s.date === displayDate
+                                            ? "text-indigo-500 font-medium"
+                                            : "text-zinc-400",
+                                    )}
+                                >
+                                    {s.date.slice(5)}
+                                </span>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )
@@ -151,37 +231,86 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
     )
 }
 
+type AppPeriod = "day" | "week" | "all"
+
 function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
-    const data = computeAppTotals(appStats)
+    const [period, setPeriod] = useState<AppPeriod>("all")
+
+    const filteredStats = useMemo(() => {
+        const today = new Date().toISOString().slice(0, 10)
+        if (period === "day") {
+            return appStats.filter((s) => s.date === today)
+        }
+        if (period === "week") {
+            const weekAgo = new Date(Date.now() - 7 * 86400000)
+                .toISOString()
+                .slice(0, 10)
+            return appStats.filter((s) => s.date >= weekAgo)
+        }
+        return appStats
+    }, [appStats, period])
+
+    const data = useMemo(
+        () => computeAppTotals(filteredStats),
+        [filteredStats],
+    )
     const max = Math.max(...data.map((d) => d.count), 1)
-    if (data.length === 0) {
-        return (
-            <p className="text-xs text-zinc-400 text-center py-1">
-                No data yet — start typing!
-            </p>
-        )
-    }
+
+    const periods: { id: AppPeriod; label: string }[] = [
+        { id: "day", label: "Today" },
+        { id: "week", label: "Week" },
+        { id: "all", label: "All" },
+    ]
+
     return (
-        <div className="flex flex-col gap-2">
-            {data.map(({ app, count }) => (
-                <div key={app} className="flex items-center gap-2.5">
-                    <span
-                        className="text-[11px] text-zinc-500 w-28 truncate shrink-0"
-                        title={app}
+        <div className="flex flex-col gap-3">
+            {/* Period selector */}
+            <div className="flex gap-1">
+                {periods.map(({ id, label }) => (
+                    <button
+                        key={id}
+                        type="button"
+                        onClick={() => setPeriod(id)}
+                        className={cn(
+                            "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
+                            period === id
+                                ? "bg-indigo-500 text-white font-medium"
+                                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                        )}
                     >
-                        {app}
-                    </span>
-                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                            style={{ width: `${(count / max) * 100}%` }}
-                        />
-                    </div>
-                    <span className="text-[11px] text-zinc-400 w-16 text-right tabular-nums">
-                        {count.toLocaleString()}
-                    </span>
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {data.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-1">
+                    No data yet — start typing!
+                </p>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {data.map(({ app, count }) => (
+                        <div key={app} className="flex items-center gap-2.5">
+                            <AppIcon app={app} />
+                            <span
+                                className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                                title={app}
+                            >
+                                {app}
+                            </span>
+                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                                    style={{ width: `${(count / max) * 100}%` }}
+                                />
+                            </div>
+                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                {count.toLocaleString()}
+                            </span>
+                        </div>
+                    ))}
                 </div>
-            ))}
+            )}
         </div>
     )
 }
