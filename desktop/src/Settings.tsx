@@ -96,7 +96,7 @@ function getAppColor(app: string): string {
     return colors[hash % colors.length]
 }
 
-// Cache icon load results in localStorage so we don't re-fetch every session
+// Cache Simple Icons CDN results in localStorage (boolean per slug)
 const ICON_CACHE_KEY = "kk-icon-cache-v1"
 const iconCache: Record<string, boolean> = (() => {
     try {
@@ -114,10 +114,18 @@ function saveIconCache(slug: string, ok: boolean) {
 
 function AppIcon({ app }: { app: string }) {
     const slug = app.toLowerCase().replace(/\s+/g, "")
-    const cached = iconCache[slug] // true = known good, false = known bad, undefined = unknown
-    const [status, setStatus] = useState<"ok" | "error" | "pending">(
-        cached === true ? "ok" : cached === false ? "error" : "pending",
-    )
+    // macOS system icon (base64 PNG), null = not found, undefined = loading
+    const [macSrc, setMacSrc] = useState<string | null | undefined>(undefined)
+    // Simple Icons CDN fallback state
+    const [simpleFailed, setSimpleFailed] = useState(iconCache[slug] === false)
+
+    useEffect(() => {
+        api.getAppIcon(app)
+            .then((b64) =>
+                setMacSrc(b64 ? `data:image/png;base64,${b64}` : null),
+            )
+            .catch(() => setMacSrc(null))
+    }, [app])
 
     const letterFallback = (
         <div
@@ -130,26 +138,38 @@ function AppIcon({ app }: { app: string }) {
         </div>
     )
 
-    if (status === "error") return letterFallback
+    // System icon available — best quality
+    if (macSrc) {
+        return (
+            <img
+                src={macSrc}
+                alt={app}
+                className="w-5 h-5 rounded-md shrink-0 object-contain"
+            />
+        )
+    }
 
-    return (
-        <img
-            src={`https://cdn.simpleicons.org/${slug}`}
-            alt={app}
-            className={cn(
-                "w-5 h-5 rounded-md shrink-0 object-contain transition-opacity",
-                status === "pending" ? "opacity-0" : "opacity-100",
-            )}
-            onLoad={() => {
-                setStatus("ok")
-                saveIconCache(slug, true)
-            }}
-            onError={() => {
-                setStatus("error")
-                saveIconCache(slug, false)
-            }}
-        />
-    )
+    // Still loading macOS icon: show letter avatar as placeholder
+    if (macSrc === undefined) return letterFallback
+
+    // macOS returned nothing — try Simple Icons CDN
+    if (!simpleFailed) {
+        return (
+            <img
+                src={`https://cdn.simpleicons.org/${slug}`}
+                alt={app}
+                className="w-5 h-5 rounded-md shrink-0 object-contain"
+                onLoad={() => saveIconCache(slug, true)}
+                onError={() => {
+                    setSimpleFailed(true)
+                    saveIconCache(slug, false)
+                }}
+            />
+        )
+    }
+
+    // Nothing worked — letter avatar
+    return letterFallback
 }
 
 function DailyBarChart({

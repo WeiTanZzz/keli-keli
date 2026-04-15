@@ -118,6 +118,107 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     app.restart();
 }
 
+// ── macOS app icon ────────────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+mod app_icon {
+    use base64::Engine;
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+
+    fn cache() -> &'static Mutex<HashMap<String, Option<String>>> {
+        CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    pub fn get(app_name: &str) -> Option<String> {
+        {
+            let c = cache().lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(v) = c.get(app_name) {
+                return v.clone();
+            }
+        }
+        let result = fetch(app_name);
+        cache()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(app_name.to_string(), result.clone());
+        result
+    }
+
+    fn find_app(app_name: &str) -> Option<String> {
+        let home = dirs::home_dir()?;
+        let dirs = [
+            "/Applications".to_string(),
+            "/System/Applications".to_string(),
+            "/System/Applications/Utilities".to_string(),
+            format!("{}/Applications", home.display()),
+        ];
+        dirs.iter().find_map(|dir| {
+            let path = format!("{}/{}.app", dir, app_name);
+            std::path::Path::new(&path).exists().then_some(path)
+        })
+    }
+
+    fn icon_file(app_path: &str) -> Option<String> {
+        let plist = format!("{}/Contents/Info.plist", app_path);
+        let out = std::process::Command::new("defaults")
+            .args(["read", &plist, "CFBundleIconFile"])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let name = String::from_utf8(out.stdout).ok()?.trim().to_string();
+        let name = if name.ends_with(".icns") {
+            name
+        } else {
+            format!("{}.icns", name)
+        };
+        let path = format!("{}/Contents/Resources/{}", app_path, name);
+        std::path::Path::new(&path).exists().then_some(path)
+    }
+
+    fn fetch(app_name: &str) -> Option<String> {
+        let app_path = find_app(app_name)?;
+        let icon_path = icon_file(&app_path)?;
+        let tmp = format!(
+            "/tmp/kk-icon-{}.png",
+            app_name.replace(|c: char| !c.is_alphanumeric(), "_")
+        );
+        let ok = std::process::Command::new("sips")
+            .args([
+                "-s", "format", "png",
+                &icon_path,
+                "--out", &tmp,
+                "--resampleHeightWidth", "64", "64",
+            ])
+            .output()
+            .ok()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if !ok {
+            return None;
+        }
+        let bytes = std::fs::read(&tmp).ok()?;
+        let _ = std::fs::remove_file(&tmp);
+        Some(base64::engine::general_purpose::STANDARD.encode(bytes))
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn get_app_icon(app_name: String) -> Option<String> {
+    app_icon::get(&app_name)
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn get_app_icon(_app_name: String) -> Option<String> {
+    None
+}
+
 #[tauri::command]
 fn get_autostart(app: AppHandle) -> bool {
     use tauri_plugin_autostart::ManagerExt;
@@ -200,7 +301,8 @@ pub fn run() {
             get_autostart,
             set_autostart,
             check_update,
-            install_update
+            install_update,
+            get_app_icon
         ])
         .setup(move |app| {
             // Set activation policy FIRST, before any window is created.
