@@ -1,7 +1,13 @@
 import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { type AppStat, type AppClickStat, api, type Config, type DayStat } from "@/api"
+import {
+    type AppClickStat,
+    type AppStat,
+    api,
+    type Config,
+    type DayStat,
+} from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -310,7 +316,9 @@ function DailyBarChart({
                                 {clicks > 0 && (
                                     <div
                                         className="w-full shrink-0 bg-rose-400"
-                                        style={{ height: `${clickFrac * 100}%` }}
+                                        style={{
+                                            height: `${clickFrac * 100}%`,
+                                        }}
                                     />
                                 )}
                             </div>
@@ -361,7 +369,8 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
                         avg > 0 ? (
                             <span>
                                 {label} · avg{" "}
-                                <strong>{avg.toLocaleString()}</strong> keystrokes
+                                <strong>{avg.toLocaleString()}</strong>{" "}
+                                keystrokes
                             </span>
                         ) : (
                             <span>{label} · no data</span>
@@ -406,13 +415,17 @@ function AppBreakdownChart({
             .slice(0, 10)
         return {
             keys: (stats: AppStat[]) => {
-                if (period === "day") return stats.filter((s) => s.date === today)
-                if (period === "week") return stats.filter((s) => s.date >= weekAgo)
+                if (period === "day")
+                    return stats.filter((s) => s.date === today)
+                if (period === "week")
+                    return stats.filter((s) => s.date >= weekAgo)
                 return stats
             },
             clicks: (stats: AppClickStat[]) => {
-                if (period === "day") return stats.filter((s) => s.date === today)
-                if (period === "week") return stats.filter((s) => s.date >= weekAgo)
+                if (period === "day")
+                    return stats.filter((s) => s.date === today)
+                if (period === "week")
+                    return stats.filter((s) => s.date >= weekAgo)
                 return stats
             },
         }
@@ -426,7 +439,9 @@ function AppBreakdownChart({
     // Aggregate left/right clicks per app across filtered dates
     const clickData = useMemo(() => {
         const map = new Map<string, { left: number; right: number }>()
-        for (const { app, left_clicks, right_clicks } of filterByPeriod.clicks(clickStats)) {
+        for (const { app, left_clicks, right_clicks } of filterByPeriod.clicks(
+            clickStats,
+        )) {
             const prev = map.get(app) ?? { left: 0, right: 0 }
             map.set(app, {
                 left: prev.left + left_clicks,
@@ -449,7 +464,10 @@ function AppBreakdownChart({
             }
         }
         return all
-            .sort((a, b) => (b.keys + b.left + b.right) - (a.keys + a.left + a.right))
+            .sort(
+                (a, b) =>
+                    b.keys + b.left + b.right - (a.keys + a.left + a.right),
+            )
             .slice(0, 10)
     }, [keyData, clickData])
 
@@ -508,7 +526,9 @@ function AppBreakdownChart({
                                 key={app}
                                 content={
                                     <span className="flex gap-2.5">
-                                        <span className="font-medium">{app}</span>
+                                        <span className="font-medium">
+                                            {app}
+                                        </span>
                                         {keys > 0 && (
                                             <span className="flex items-center gap-1">
                                                 <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
@@ -1068,9 +1088,11 @@ export default function Settings() {
                                 ? {
                                       ...s,
                                       left_clicks:
-                                          s.left_clicks + (button === 0 ? 1 : 0),
+                                          s.left_clicks +
+                                          (button === 0 ? 1 : 0),
                                       right_clicks:
-                                          s.right_clicks + (button === 1 ? 1 : 0),
+                                          s.right_clicks +
+                                          (button === 1 ? 1 : 0),
                                   }
                                 : s,
                         )
