@@ -789,15 +789,29 @@ function StatisticsSection({
         ? "actions today"
         : `actions · ${selectedDate}`
 
+    // All-dates total actions (keys + clicks) per date
+    const dailyTotals = useMemo(() => {
+        const allDates = new Set([
+            ...stats.map((s) => s.date),
+            ...dailyClicks.keys(),
+        ])
+        return Array.from(allDates).map((date) => ({
+            date,
+            total:
+                (stats.find((s) => s.date === date)?.count ?? 0) +
+                (dailyClicks.get(date) ?? 0),
+        }))
+    }, [stats, dailyClicks])
+
     const daysWithData = useMemo(
-        () => stats.filter((s) => s.count > 0),
-        [stats],
+        () => dailyTotals.filter((d) => d.total > 0),
+        [dailyTotals],
     )
     const avgCount = useMemo(
         () =>
             daysWithData.length > 0
                 ? Math.round(
-                      daysWithData.reduce((sum, s) => sum + s.count, 0) /
+                      daysWithData.reduce((sum, d) => sum + d.total, 0) /
                           daysWithData.length,
                   )
                 : 0,
@@ -805,16 +819,16 @@ function StatisticsSection({
     )
     const bestDay = useMemo(
         () =>
-            stats.reduce((best, s) => (s.count > best.count ? s : best), {
+            dailyTotals.reduce((best, d) => (d.total > best.total ? d : best), {
                 date: "",
-                count: 0,
+                total: 0,
             }),
-        [stats],
+        [dailyTotals],
     )
     const streak = useMemo(() => computeStreak(stats), [stats])
     const allTimeTotal = useMemo(
-        () => stats.reduce((sum, s) => sum + s.count, 0),
-        [stats],
+        () => dailyTotals.reduce((sum, d) => sum + d.total, 0),
+        [dailyTotals],
     )
 
     return (
@@ -866,12 +880,24 @@ function StatisticsSection({
                     <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
                         <StatChip
                             label="Daily avg"
-                            value={avgCount.toLocaleString()}
-                            sub="keystrokes"
+                            value={
+                                avgCount >= 1_000_000
+                                    ? `${(avgCount / 1_000_000).toFixed(1)}M`
+                                    : avgCount >= 1_000
+                                      ? `${(avgCount / 1_000).toFixed(1)}K`
+                                      : avgCount.toLocaleString()
+                            }
+                            sub="actions"
                         />
                         <StatChip
                             label="Best day"
-                            value={bestDay.count.toLocaleString()}
+                            value={
+                                bestDay.total >= 1_000_000
+                                    ? `${(bestDay.total / 1_000_000).toFixed(1)}M`
+                                    : bestDay.total >= 1_000
+                                      ? `${(bestDay.total / 1_000).toFixed(1)}K`
+                                      : bestDay.total.toLocaleString()
+                            }
                             sub={
                                 bestDay.date ? bestDay.date.slice(5) : undefined
                             }
@@ -890,7 +916,7 @@ function StatisticsSection({
                                       ? `${(allTimeTotal / 1_000).toFixed(1)}K`
                                       : allTimeTotal.toLocaleString()
                             }
-                            sub="keystrokes"
+                            sub="actions"
                         />
                     </div>
                 </Card>
