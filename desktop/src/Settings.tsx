@@ -666,14 +666,14 @@ function StatChip({
     sub?: string
 }) {
     return (
-        <div className="flex flex-col gap-1.5 p-4 h-full">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
+        <div className="flex flex-col gap-1 px-3 py-3">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none mb-1">
                 {label}
             </span>
-            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-none mt-auto">
+            <span className="text-xl font-bold text-zinc-800 tabular-nums leading-none">
                 {value}
             </span>
-            <span className="text-[10px] text-zinc-400 leading-none">
+            <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
                 {sub ?? ""}
             </span>
         </div>
