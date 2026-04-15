@@ -96,10 +96,30 @@ function getAppColor(app: string): string {
     return colors[hash % colors.length]
 }
 
+// Cache icon load results in localStorage so we don't re-fetch every session
+const ICON_CACHE_KEY = "kk-icon-cache-v1"
+const iconCache: Record<string, boolean> = (() => {
+    try {
+        return JSON.parse(localStorage.getItem(ICON_CACHE_KEY) ?? "{}")
+    } catch {
+        return {}
+    }
+})()
+function saveIconCache(slug: string, ok: boolean) {
+    iconCache[slug] = ok
+    try {
+        localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(iconCache))
+    } catch {}
+}
+
 function AppIcon({ app }: { app: string }) {
-    const [failed, setFailed] = useState(false)
     const slug = app.toLowerCase().replace(/\s+/g, "")
-    const fallback = (
+    const cached = iconCache[slug] // true = known good, false = known bad, undefined = unknown
+    const [status, setStatus] = useState<"ok" | "error" | "pending">(
+        cached === true ? "ok" : cached === false ? "error" : "pending",
+    )
+
+    const letterFallback = (
         <div
             className={cn(
                 "w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
@@ -109,13 +129,25 @@ function AppIcon({ app }: { app: string }) {
             {app.charAt(0).toUpperCase()}
         </div>
     )
-    if (failed) return fallback
+
+    if (status === "error") return letterFallback
+
     return (
         <img
             src={`https://cdn.simpleicons.org/${slug}`}
             alt={app}
-            className="w-5 h-5 rounded-md shrink-0 object-contain"
-            onError={() => setFailed(true)}
+            className={cn(
+                "w-5 h-5 rounded-md shrink-0 object-contain transition-opacity",
+                status === "pending" ? "opacity-0" : "opacity-100",
+            )}
+            onLoad={() => {
+                setStatus("ok")
+                saveIconCache(slug, true)
+            }}
+            onError={() => {
+                setStatus("error")
+                saveIconCache(slug, false)
+            }}
         />
     )
 }
