@@ -375,7 +375,8 @@ pub fn run() {
 }
 
 fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let count = MenuItemBuilder::with_id("count", "Today: 0 keystrokes")
+    let initial = app.state::<storage::Storage>().today_count();
+    let count = MenuItemBuilder::with_id("count", format!("Today: {initial} keystrokes"))
         .enabled(false)
         .build(app)?;
     let sep0 = PredefinedMenuItem::separator(app)?;
