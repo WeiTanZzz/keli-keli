@@ -80,6 +80,26 @@ function computeDayOfWeekAvg(
     }))
 }
 
+function computeDayOfWeekClickAvg(clickStats: AppClickStat[]): number[] {
+    // Aggregate total clicks per date first
+    const byDate = new Map<string, number>()
+    for (const s of clickStats) {
+        byDate.set(
+            s.date,
+            (byDate.get(s.date) ?? 0) + s.left_clicks + s.right_clicks,
+        )
+    }
+    const sums = new Array(7).fill(0)
+    const counts = new Array(7).fill(0)
+    for (const [date, total] of byDate) {
+        if (total === 0) continue
+        const dow = (new Date(`${date}T12:00:00`).getDay() + 6) % 7
+        sums[dow] += total
+        counts[dow]++
+    }
+    return sums.map((s, i) => (counts[i] > 0 ? Math.round(s / counts[i]) : 0))
+}
+
 // ─── Tooltip ─────────────────────────────────────────────────────────────────
 
 function Tip({
@@ -365,45 +385,75 @@ function DailyBarChart({
     )
 }
 
-function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
+function DayOfWeekChart({
+    stats,
+    clickStats,
+}: {
+    stats: DayStat[]
+    clickStats: AppClickStat[]
+}) {
     const dowData = useMemo(() => computeDayOfWeekAvg(stats), [stats])
+    const clickAvgs = useMemo(
+        () => computeDayOfWeekClickAvg(clickStats),
+        [clickStats],
+    )
     const max = useMemo(
-        () => Math.max(...dowData.map((d) => d.avg), 1),
-        [dowData],
+        () => Math.max(...dowData.map((d, i) => d.avg + clickAvgs[i]), 1),
+        [dowData, clickAvgs],
     )
     return (
         <div className="flex flex-col gap-2">
-            {dowData.map(({ label, avg }) => (
-                <Tip
-                    key={label}
-                    content={
-                        avg > 0 ? (
-                            <span>
-                                {label} · avg{" "}
-                                <strong>{avg.toLocaleString()}</strong>{" "}
-                                keystrokes
+            {dowData.map(({ label, avg }, i) => {
+                const clicks = clickAvgs[i]
+                const total = avg + clicks
+                return (
+                    <Tip
+                        key={label}
+                        content={
+                            total > 0 ? (
+                                <span className="flex gap-2.5">
+                                    <span className="font-medium">{label}</span>
+                                    {avg > 0 && (
+                                        <span className="flex items-center gap-1">
+                                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                                            avg {avg.toLocaleString()} keys
+                                        </span>
+                                    )}
+                                    {clicks > 0 && (
+                                        <span className="flex items-center gap-1">
+                                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                                            avg {clicks.toLocaleString()} clicks
+                                        </span>
+                                    )}
+                                </span>
+                            ) : (
+                                <span>{label} · no data</span>
+                            )
+                        }
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-[11px] text-zinc-400 w-7 shrink-0">
+                                {label}
                             </span>
-                        ) : (
-                            <span>{label} · no data</span>
-                        )
-                    }
-                >
-                    <div className="flex items-center gap-2.5">
-                        <span className="text-[11px] text-zinc-400 w-7 shrink-0">
-                            {label}
-                        </span>
-                        <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                                style={{ width: `${(avg / max) * 100}%` }}
-                            />
+                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                                <div
+                                    className="h-full bg-indigo-400 transition-all duration-500"
+                                    style={{ width: `${(avg / max) * 100}%` }}
+                                />
+                                <div
+                                    className="h-full bg-rose-400 transition-all duration-500"
+                                    style={{
+                                        width: `${(clicks / max) * 100}%`,
+                                    }}
+                                />
+                            </div>
+                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                {total > 0 ? total.toLocaleString() : "—"}
+                            </span>
                         </div>
-                        <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                            {avg > 0 ? avg.toLocaleString() : "—"}
-                        </span>
-                    </div>
-                </Tip>
-            ))}
+                    </Tip>
+                )
+            })}
         </div>
     )
 }
@@ -826,7 +876,7 @@ function StatisticsSection({
                 <SectionTitle>By Day of Week</SectionTitle>
                 <Card>
                     <div className="px-4 py-4">
-                        <DayOfWeekChart stats={stats} />
+                        <DayOfWeekChart stats={stats} clickStats={clickStats} />
                     </div>
                 </Card>
             </div>
