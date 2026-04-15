@@ -477,7 +477,7 @@ function AppBreakdownChart({
     appStats: AppStat[]
     clickStats: AppClickStat[]
 }) {
-    const [period, setPeriod] = useState<AppPeriod>("all")
+    const [period, setPeriod] = useState<AppPeriod>("day")
 
     const filterByPeriod = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10)
