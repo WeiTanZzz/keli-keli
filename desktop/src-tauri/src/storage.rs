@@ -265,8 +265,18 @@ mod tests {
         let key_stats = s.get_app_stats(7);
         let click_stats = s.get_app_click_stats(7);
 
-        assert_eq!(key_stats.iter().find(|(_, a, _)| a == "Safari").unwrap().2, 2);
-        assert_eq!(click_stats.iter().find(|(_, a, _)| a == "Safari").unwrap().2, 1);
+        let (_, _, key_count) = key_stats
+            .iter()
+            .find(|(_, a, _)| a == "Safari")
+            .copied()
+            .unwrap();
+        let (_, _, click_count) = click_stats
+            .iter()
+            .find(|(_, a, _)| a == "Safari")
+            .copied()
+            .unwrap();
+        assert_eq!(key_count, 2);
+        assert_eq!(click_count, 1);
     }
 
     #[test]
@@ -280,8 +290,13 @@ mod tests {
         s.save();
 
         let s2 = Storage::load_from(path);
-        let stats = s2.get_app_click_stats(7);
-        assert_eq!(stats.iter().find(|(_, a, _)| a == "Finder").unwrap().2, 2);
+        let click_stats = s2.get_app_click_stats(7);
+        let (_, _, count) = click_stats
+            .iter()
+            .find(|(_, a, _)| a == "Finder")
+            .copied()
+            .unwrap();
+        assert_eq!(count, 2);
     }
 
     // This test verifies that a poisoned Mutex does NOT cause a panic.
