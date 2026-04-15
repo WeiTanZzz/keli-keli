@@ -109,30 +109,25 @@ function AppIcon({ app }: { app: string }) {
     )
 }
 
-function DailyBarChart({ stats }: { stats: DayStat[] }) {
-    const [selectedDate, setSelectedDate] = useState<string | null>(null)
+function DailyBarChart({
+    stats,
+    selectedDate,
+    onSelectDate,
+}: {
+    stats: DayStat[]
+    selectedDate: string | null
+    onSelectDate: (date: string | null) => void
+}) {
     const recent = useMemo(() => stats.slice(-30), [stats])
     const max = useMemo(
         () => Math.max(...recent.map((s) => s.count), 1),
         [recent],
     )
     const today = new Date().toISOString().slice(0, 10)
-
     const displayDate = selectedDate ?? today
-    const displayStat = recent.find((s) => s.date === displayDate)
 
     return (
         <div className="flex flex-col gap-1.5">
-            {/* Selected / today info */}
-            <div className="flex items-baseline justify-between">
-                <span className="text-[11px] font-medium text-zinc-500">
-                    {displayDate === today ? "Today" : displayDate}
-                </span>
-                <span className="text-[11px] tabular-nums text-zinc-400">
-                    {(displayStat?.count ?? 0).toLocaleString()} keystrokes
-                </span>
-            </div>
-
             {/* Bars */}
             <div className="flex items-end gap-0.5 h-20">
                 {recent.map((s) => {
@@ -146,7 +141,7 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
                             key={s.date}
                             className="flex flex-1 flex-col justify-end h-full group cursor-pointer"
                             onClick={() =>
-                                setSelectedDate(
+                                onSelectDate(
                                     s.date === selectedDate ? null : s.date,
                                 )
                             }
@@ -157,12 +152,13 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
                                     isSelected
                                         ? "opacity-100"
                                         : "opacity-60 group-hover:opacity-90",
-                                    isToday || isSelected
+                                    isToday
                                         ? "bg-indigo-500"
-                                        : isWeekend
-                                          ? "bg-zinc-300"
-                                          : "bg-zinc-200",
-                                    isSelected && !isToday && "bg-zinc-500",
+                                        : isSelected
+                                          ? "bg-zinc-500"
+                                          : isWeekend
+                                            ? "bg-zinc-300"
+                                            : "bg-zinc-200",
                                 )}
                                 style={{
                                     height: `${pct}%`,
@@ -178,9 +174,7 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
             <div className="flex items-start gap-0.5">
                 {recent.map((s, i) => {
                     const showLabel =
-                        i === 0 ||
-                        i === recent.length - 1 ||
-                        i % 7 === 0
+                        i === 0 || i === recent.length - 1 || i % 7 === 0
                     return (
                         <div key={s.date} className="flex-1 text-center">
                             {showLabel && (
@@ -390,8 +384,10 @@ function StatisticsSection({
     stats: DayStat[]
     appStats: AppStat[]
 }) {
+    const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = new Date().toISOString().slice(0, 10)
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+
     const todayCount = useMemo(
         () => stats.find((s) => s.date === today)?.count ?? 0,
         [stats, today],
@@ -400,6 +396,32 @@ function StatisticsSection({
         () => stats.find((s) => s.date === yesterday)?.count ?? 0,
         [stats, yesterday],
     )
+
+    // Hero: show selected date's data (or today if none selected)
+    const isViewingToday = selectedDate === null || selectedDate === today
+    const heroCount = useMemo(() => {
+        if (isViewingToday) return todayCount
+        return stats.find((s) => s.date === selectedDate)?.count ?? 0
+    }, [stats, selectedDate, isViewingToday, todayCount])
+
+    // Compare selected date vs today; or today vs yesterday
+    const trendPct = useMemo(() => {
+        if (isViewingToday) {
+            return yesterdayCount > 0
+                ? Math.round(
+                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
+                  )
+                : null
+        }
+        return todayCount > 0
+            ? Math.round(((heroCount - todayCount) / todayCount) * 100)
+            : null
+    }, [isViewingToday, todayCount, yesterdayCount, heroCount])
+
+    const heroLabel = isViewingToday
+        ? "keystrokes today"
+        : `keystrokes · ${selectedDate}`
+
     const daysWithData = useMemo(
         () => stats.filter((s) => s.count > 0),
         [stats],
@@ -427,27 +449,18 @@ function StatisticsSection({
         () => stats.reduce((sum, s) => sum + s.count, 0),
         [stats],
     )
-    const trendPct = useMemo(
-        () =>
-            yesterdayCount > 0
-                ? Math.round(
-                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
-                  )
-                : null,
-        [todayCount, yesterdayCount],
-    )
 
     return (
         <div className="flex flex-col gap-4">
             <SectionTitle>Statistics</SectionTitle>
 
-            {/* Today hero + 30-day chart */}
+            {/* Hero + 30-day chart */}
             <Card>
                 <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
                         <div className="flex items-baseline gap-2">
                             <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                {todayCount.toLocaleString()}
+                                {heroCount.toLocaleString()}
                             </span>
                             {trendPct !== null && (
                                 <span
@@ -464,10 +477,14 @@ function StatisticsSection({
                             )}
                         </div>
                         <span className="text-xs text-zinc-400">
-                            keystrokes today
+                            {heroLabel}
                         </span>
                     </div>
-                    <DailyBarChart stats={stats} />
+                    <DailyBarChart
+                        stats={stats}
+                        selectedDate={selectedDate}
+                        onSelectDate={setSelectedDate}
+                    />
                 </div>
             </Card>
 
