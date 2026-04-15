@@ -76,35 +76,152 @@ function computeDayOfWeekAvg(
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
-function DailyBarChart({ stats }: { stats: DayStat[] }) {
+function getAppColor(app: string): string {
+    const colors = [
+        "bg-blue-400",
+        "bg-emerald-400",
+        "bg-purple-400",
+        "bg-orange-400",
+        "bg-pink-400",
+        "bg-teal-400",
+        "bg-amber-400",
+        "bg-red-400",
+        "bg-cyan-400",
+        "bg-indigo-400",
+    ]
+    let hash = 0
+    for (let i = 0; i < app.length; i++) {
+        hash = (hash * 31 + app.charCodeAt(i)) & 0x7fffffff
+    }
+    return colors[hash % colors.length]
+}
+
+// Cache Simple Icons CDN results in localStorage (boolean per slug)
+const ICON_CACHE_KEY = "kk-icon-cache-v1"
+const iconCache: Record<string, boolean> = (() => {
+    try {
+        return JSON.parse(localStorage.getItem(ICON_CACHE_KEY) ?? "{}")
+    } catch {
+        return {}
+    }
+})()
+function saveIconCache(slug: string, ok: boolean) {
+    iconCache[slug] = ok
+    try {
+        localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(iconCache))
+    } catch {}
+}
+
+function AppIcon({ app }: { app: string }) {
+    const slug = app.toLowerCase().replace(/\s+/g, "")
+    // macOS system icon (base64 PNG), null = not found, undefined = loading
+    const [macSrc, setMacSrc] = useState<string | null | undefined>(undefined)
+    // Simple Icons CDN fallback state
+    const [simpleFailed, setSimpleFailed] = useState(iconCache[slug] === false)
+
+    useEffect(() => {
+        api.getAppIcon(app)
+            .then((b64) =>
+                setMacSrc(b64 ? `data:image/png;base64,${b64}` : null),
+            )
+            .catch(() => setMacSrc(null))
+    }, [app])
+
+    const letterFallback = (
+        <div
+            className={cn(
+                "w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+                getAppColor(app),
+            )}
+        >
+            {app.charAt(0).toUpperCase()}
+        </div>
+    )
+
+    // System icon available — best quality
+    if (macSrc) {
+        return (
+            <img
+                src={macSrc}
+                alt={app}
+                className="w-5 h-5 rounded-md shrink-0 object-contain"
+            />
+        )
+    }
+
+    // Still loading macOS icon: show letter avatar as placeholder
+    if (macSrc === undefined) return letterFallback
+
+    // macOS returned nothing — try Simple Icons CDN
+    if (!simpleFailed) {
+        return (
+            <img
+                src={`https://cdn.simpleicons.org/${slug}`}
+                alt={app}
+                className="w-5 h-5 rounded-md shrink-0 object-contain"
+                onLoad={() => saveIconCache(slug, true)}
+                onError={() => {
+                    setSimpleFailed(true)
+                    saveIconCache(slug, false)
+                }}
+            />
+        )
+    }
+
+    // Nothing worked — letter avatar
+    return letterFallback
+}
+
+function DailyBarChart({
+    stats,
+    selectedDate,
+    onSelectDate,
+}: {
+    stats: DayStat[]
+    selectedDate: string | null
+    onSelectDate: (date: string | null) => void
+}) {
     const recent = useMemo(() => stats.slice(-30), [stats])
     const max = useMemo(
         () => Math.max(...recent.map((s) => s.count), 1),
         [recent],
     )
     const today = new Date().toISOString().slice(0, 10)
+    const displayDate = selectedDate ?? today
+
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
+            {/* Bars */}
             <div className="flex items-end gap-0.5 h-20">
                 {recent.map((s) => {
                     const pct = (s.count / max) * 100
                     const isToday = s.date === today
+                    const isSelected = s.date === displayDate
                     const dow = new Date(`${s.date}T12:00:00`).getDay()
                     const isWeekend = dow === 0 || dow === 6
                     return (
                         <div
                             key={s.date}
-                            title={`${s.date}: ${s.count.toLocaleString()}`}
-                            className="flex flex-1 flex-col justify-end h-full group cursor-default"
+                            className="flex flex-1 flex-col justify-end h-full group cursor-pointer"
+                            onClick={() =>
+                                onSelectDate(
+                                    s.date === selectedDate ? null : s.date,
+                                )
+                            }
                         >
                             <div
                                 className={cn(
-                                    "w-full rounded-sm transition-all duration-150 group-hover:opacity-70",
+                                    "w-full rounded-sm transition-all duration-150",
+                                    isSelected
+                                        ? "opacity-100"
+                                        : "opacity-60 group-hover:opacity-90",
                                     isToday
                                         ? "bg-indigo-500"
-                                        : isWeekend
-                                          ? "bg-zinc-300"
-                                          : "bg-zinc-200",
+                                        : isSelected
+                                          ? "bg-zinc-500"
+                                          : isWeekend
+                                            ? "bg-zinc-300"
+                                            : "bg-zinc-200",
                                 )}
                                 style={{
                                     height: `${pct}%`,
@@ -115,9 +232,29 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
                     )
                 })}
             </div>
-            <div className="flex justify-between text-[10px] text-zinc-400">
-                <span>{recent[0]?.date.slice(5)}</span>
-                <span>today</span>
+
+            {/* Date labels — sparse: first, every 7, last */}
+            <div className="flex items-start gap-0.5">
+                {recent.map((s, i) => {
+                    const showLabel =
+                        i === 0 || i === recent.length - 1 || i % 7 === 0
+                    return (
+                        <div key={s.date} className="flex-1 text-center">
+                            {showLabel && (
+                                <span
+                                    className={cn(
+                                        "text-[9px] leading-none",
+                                        s.date === displayDate
+                                            ? "text-indigo-500 font-medium"
+                                            : "text-zinc-400",
+                                    )}
+                                >
+                                    {s.date.slice(5)}
+                                </span>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )
@@ -151,37 +288,83 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
     )
 }
 
+type AppPeriod = "day" | "week" | "all"
+
 function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
-    const data = computeAppTotals(appStats)
+    const [period, setPeriod] = useState<AppPeriod>("all")
+
+    const filteredStats = useMemo(() => {
+        const today = new Date().toISOString().slice(0, 10)
+        if (period === "day") {
+            return appStats.filter((s) => s.date === today)
+        }
+        if (period === "week") {
+            const weekAgo = new Date(Date.now() - 7 * 86400000)
+                .toISOString()
+                .slice(0, 10)
+            return appStats.filter((s) => s.date >= weekAgo)
+        }
+        return appStats
+    }, [appStats, period])
+
+    const data = useMemo(() => computeAppTotals(filteredStats), [filteredStats])
     const max = Math.max(...data.map((d) => d.count), 1)
-    if (data.length === 0) {
-        return (
-            <p className="text-xs text-zinc-400 text-center py-1">
-                No data yet — start typing!
-            </p>
-        )
-    }
+
+    const periods: { id: AppPeriod; label: string }[] = [
+        { id: "day", label: "Today" },
+        { id: "week", label: "Week" },
+        { id: "all", label: "All" },
+    ]
+
     return (
-        <div className="flex flex-col gap-2">
-            {data.map(({ app, count }) => (
-                <div key={app} className="flex items-center gap-2.5">
-                    <span
-                        className="text-[11px] text-zinc-500 w-28 truncate shrink-0"
-                        title={app}
+        <div className="flex flex-col gap-3">
+            {/* Period selector */}
+            <div className="flex gap-1">
+                {periods.map(({ id, label }) => (
+                    <button
+                        key={id}
+                        type="button"
+                        onClick={() => setPeriod(id)}
+                        className={cn(
+                            "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
+                            period === id
+                                ? "bg-indigo-500 text-white font-medium"
+                                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                        )}
                     >
-                        {app}
-                    </span>
-                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                            style={{ width: `${(count / max) * 100}%` }}
-                        />
-                    </div>
-                    <span className="text-[11px] text-zinc-400 w-16 text-right tabular-nums">
-                        {count.toLocaleString()}
-                    </span>
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {data.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-1">
+                    No data yet — start typing!
+                </p>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {data.map(({ app, count }) => (
+                        <div key={app} className="flex items-center gap-2.5">
+                            <AppIcon app={app} />
+                            <span
+                                className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                                title={app}
+                            >
+                                {app}
+                            </span>
+                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                                    style={{ width: `${(count / max) * 100}%` }}
+                                />
+                            </div>
+                            <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                                {count.toLocaleString()}
+                            </span>
+                        </div>
+                    ))}
                 </div>
-            ))}
+            )}
         </div>
     )
 }
@@ -261,8 +444,10 @@ function StatisticsSection({
     stats: DayStat[]
     appStats: AppStat[]
 }) {
+    const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = new Date().toISOString().slice(0, 10)
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+
     const todayCount = useMemo(
         () => stats.find((s) => s.date === today)?.count ?? 0,
         [stats, today],
@@ -271,6 +456,32 @@ function StatisticsSection({
         () => stats.find((s) => s.date === yesterday)?.count ?? 0,
         [stats, yesterday],
     )
+
+    // Hero: show selected date's data (or today if none selected)
+    const isViewingToday = selectedDate === null || selectedDate === today
+    const heroCount = useMemo(() => {
+        if (isViewingToday) return todayCount
+        return stats.find((s) => s.date === selectedDate)?.count ?? 0
+    }, [stats, selectedDate, isViewingToday, todayCount])
+
+    // Compare selected date vs today; or today vs yesterday
+    const trendPct = useMemo(() => {
+        if (isViewingToday) {
+            return yesterdayCount > 0
+                ? Math.round(
+                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
+                  )
+                : null
+        }
+        return todayCount > 0
+            ? Math.round(((heroCount - todayCount) / todayCount) * 100)
+            : null
+    }, [isViewingToday, todayCount, yesterdayCount, heroCount])
+
+    const heroLabel = isViewingToday
+        ? "keystrokes today"
+        : `keystrokes · ${selectedDate}`
+
     const daysWithData = useMemo(
         () => stats.filter((s) => s.count > 0),
         [stats],
@@ -298,47 +509,49 @@ function StatisticsSection({
         () => stats.reduce((sum, s) => sum + s.count, 0),
         [stats],
     )
-    const trendPct = useMemo(
-        () =>
-            yesterdayCount > 0
-                ? Math.round(
-                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
-                  )
-                : null,
-        [todayCount, yesterdayCount],
-    )
 
     return (
         <div className="flex flex-col gap-4">
             <SectionTitle>Statistics</SectionTitle>
 
-            {/* Today hero + 30-day chart */}
+            {/* Hero + 30-day chart */}
             <Card>
                 <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
                         <div className="flex items-baseline gap-2">
                             <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                {todayCount.toLocaleString()}
+                                {heroCount.toLocaleString()}
                             </span>
                             {trendPct !== null && (
-                                <span
-                                    className={cn(
-                                        "text-xs font-medium tabular-nums",
-                                        trendPct >= 0
-                                            ? "text-emerald-500"
-                                            : "text-red-400",
+                                <span className="flex items-baseline gap-1">
+                                    <span
+                                        className={cn(
+                                            "text-xs font-medium tabular-nums",
+                                            trendPct >= 0
+                                                ? "text-emerald-500"
+                                                : "text-red-400",
+                                        )}
+                                    >
+                                        {trendPct >= 0 ? "+" : ""}
+                                        {trendPct}%
+                                    </span>
+                                    {!isViewingToday && (
+                                        <span className="text-[10px] text-zinc-400">
+                                            vs today
+                                        </span>
                                     )}
-                                >
-                                    {trendPct >= 0 ? "+" : ""}
-                                    {trendPct}%
                                 </span>
                             )}
                         </div>
                         <span className="text-xs text-zinc-400">
-                            keystrokes today
+                            {heroLabel}
                         </span>
                     </div>
-                    <DailyBarChart stats={stats} />
+                    <DailyBarChart
+                        stats={stats}
+                        selectedDate={selectedDate}
+                        onSelectDate={setSelectedDate}
+                    />
                 </div>
             </Card>
 

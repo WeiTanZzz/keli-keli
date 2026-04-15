@@ -48,4 +48,7 @@ export const api = {
     checkUpdate: (): Promise<UpdateInfo> => invoke<UpdateInfo>("check_update"),
 
     installUpdate: (): Promise<void> => invoke("install_update"),
+
+    getAppIcon: (appName: string): Promise<string | null> =>
+        invoke<string | null>("get_app_icon", { appName }),
 }
