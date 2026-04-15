@@ -62,42 +62,19 @@ function computeStreak(stats: DayStat[]): number {
     return streak
 }
 
-function computeDayOfWeekAvg(
-    stats: DayStat[],
-): { label: string; avg: number }[] {
-    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    const sums = new Array(7).fill(0)
-    const counts = new Array(7).fill(0)
-    for (const s of stats) {
-        if (s.count === 0) continue
-        const dow = (new Date(`${s.date}T12:00:00`).getDay() + 6) % 7
-        sums[dow] += s.count
-        counts[dow]++
-    }
-    return labels.map((label, i) => ({
-        label,
-        avg: counts[i] > 0 ? Math.round(sums[i] / counts[i]) : 0,
-    }))
-}
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-function computeDayOfWeekClickAvg(clickStats: AppClickStat[]): number[] {
-    // Aggregate total clicks per date first
-    const byDate = new Map<string, number>()
-    for (const s of clickStats) {
-        byDate.set(
-            s.date,
-            (byDate.get(s.date) ?? 0) + s.left_clicks + s.right_clicks,
-        )
-    }
-    const sums = new Array(7).fill(0)
-    const counts = new Array(7).fill(0)
-    for (const [date, total] of byDate) {
-        if (total === 0) continue
-        const dow = (new Date(`${date}T12:00:00`).getDay() + 6) % 7
-        sums[dow] += total
-        counts[dow]++
-    }
-    return sums.map((s, i) => (counts[i] > 0 ? Math.round(s / counts[i]) : 0))
+function last7Days(): { date: string; label: string; isToday: boolean }[] {
+    return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const date = d.toISOString().slice(0, 10)
+        return {
+            date,
+            label: i === 0 ? "Today" : DOW[d.getDay()],
+            isToday: i === 0,
+        }
+    })
 }
 
 // ─── Tooltip ─────────────────────────────────────────────────────────────────
@@ -385,60 +362,93 @@ function DailyBarChart({
     )
 }
 
-function DayOfWeekChart({
+function Last7DaysChart({
     stats,
     clickStats,
 }: {
     stats: DayStat[]
     clickStats: AppClickStat[]
 }) {
-    const dowData = useMemo(() => computeDayOfWeekAvg(stats), [stats])
-    const clickAvgs = useMemo(
-        () => computeDayOfWeekClickAvg(clickStats),
-        [clickStats],
+    const days = useMemo(() => last7Days(), [])
+
+    const keyMap = useMemo(
+        () => new Map(stats.map((s) => [s.date, s.count])),
+        [stats],
     )
+    const clickMap = useMemo(() => {
+        const m = new Map<string, number>()
+        for (const s of clickStats) {
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
+        }
+        return m
+    }, [clickStats])
+
+    const rows = useMemo(
+        () =>
+            days.map(({ date, label, isToday }) => ({
+                date,
+                label,
+                isToday,
+                keys: keyMap.get(date) ?? 0,
+                clicks: clickMap.get(date) ?? 0,
+            })),
+        [days, keyMap, clickMap],
+    )
+
     const max = useMemo(
-        () => Math.max(...dowData.map((d, i) => d.avg + clickAvgs[i]), 1),
-        [dowData, clickAvgs],
+        () => Math.max(...rows.map((r) => r.keys + r.clicks), 1),
+        [rows],
     )
+
     return (
         <div className="flex flex-col gap-2">
-            {dowData.map(({ label, avg }, i) => {
-                const clicks = clickAvgs[i]
-                const total = avg + clicks
+            {rows.map(({ date, label, isToday, keys, clicks }) => {
+                const total = keys + clicks
                 return (
                     <Tip
-                        key={label}
+                        key={date}
                         content={
                             total > 0 ? (
                                 <span className="flex gap-2.5">
-                                    <span className="font-medium">{label}</span>
-                                    {avg > 0 && (
+                                    <span className="font-medium">{date}</span>
+                                    {keys > 0 && (
                                         <span className="flex items-center gap-1">
                                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
-                                            avg {avg.toLocaleString()} keys
+                                            {keys.toLocaleString()} keys
                                         </span>
                                     )}
                                     {clicks > 0 && (
                                         <span className="flex items-center gap-1">
                                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                                            avg {clicks.toLocaleString()} clicks
+                                            {clicks.toLocaleString()} clicks
                                         </span>
                                     )}
                                 </span>
                             ) : (
-                                <span>{label} · no data</span>
+                                <span>{date} · no data</span>
                             )
                         }
                     >
                         <div className="flex items-center gap-2.5">
-                            <span className="text-[11px] text-zinc-400 w-7 shrink-0">
+                            <span
+                                className={cn(
+                                    "text-[11px] w-10 shrink-0",
+                                    isToday
+                                        ? "text-indigo-500 font-semibold"
+                                        : "text-zinc-400",
+                                )}
+                            >
                                 {label}
                             </span>
                             <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
                                 <div
-                                    className="h-full bg-indigo-400 transition-all duration-500"
-                                    style={{ width: `${(avg / max) * 100}%` }}
+                                    className={cn(
+                                        "h-full transition-all duration-500",
+                                        isToday
+                                            ? "bg-indigo-500"
+                                            : "bg-indigo-400",
+                                    )}
+                                    style={{ width: `${(keys / max) * 100}%` }}
                                 />
                                 <div
                                     className="h-full bg-rose-400 transition-all duration-500"
@@ -873,10 +883,10 @@ function StatisticsSection({
 
             {/* Day-of-week pattern */}
             <div className="flex flex-col gap-2">
-                <SectionTitle>By Day of Week</SectionTitle>
+                <SectionTitle>Last 7 Days</SectionTitle>
                 <Card>
                     <div className="px-4 py-4">
-                        <DayOfWeekChart stats={stats} clickStats={clickStats} />
+                        <Last7DaysChart stats={stats} clickStats={clickStats} />
                     </div>
                 </Card>
             </div>
