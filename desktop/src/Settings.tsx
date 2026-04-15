@@ -666,18 +666,16 @@ function StatChip({
     sub?: string
 }) {
     return (
-        <div className="flex flex-col gap-1.5 p-4">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
+        <div className="flex flex-col gap-1.5 p-4 h-full">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
                 {label}
             </span>
-            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-none">
+            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-none mt-auto">
                 {value}
             </span>
-            {sub && (
-                <span className="text-[10px] text-zinc-400 leading-none">
-                    {sub}
-                </span>
-            )}
+            <span className="text-[10px] text-zinc-400 leading-none">
+                {sub ?? ""}
+            </span>
         </div>
     )
 }
@@ -740,39 +738,56 @@ function StatisticsSection({
     const today = new Date().toISOString().slice(0, 10)
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
 
-    const todayCount = useMemo(
-        () => stats.find((s) => s.date === today)?.count ?? 0,
-        [stats, today],
+    // Daily click totals (left + right) per date
+    const dailyClicks = useMemo(() => {
+        const m = new Map<string, number>()
+        for (const s of clickStats) {
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
+        }
+        return m
+    }, [clickStats])
+
+    const todayTotal = useMemo(
+        () =>
+            (stats.find((s) => s.date === today)?.count ?? 0) +
+            (dailyClicks.get(today) ?? 0),
+        [stats, dailyClicks, today],
     )
-    const yesterdayCount = useMemo(
-        () => stats.find((s) => s.date === yesterday)?.count ?? 0,
-        [stats, yesterday],
+    const yesterdayTotal = useMemo(
+        () =>
+            (stats.find((s) => s.date === yesterday)?.count ?? 0) +
+            (dailyClicks.get(yesterday) ?? 0),
+        [stats, dailyClicks, yesterday],
     )
 
-    // Hero: show selected date's data (or today if none selected)
+    // Hero: keys + clicks for selected date (or today)
     const isViewingToday = selectedDate === null || selectedDate === today
     const heroCount = useMemo(() => {
-        if (isViewingToday) return todayCount
-        return stats.find((s) => s.date === selectedDate)?.count ?? 0
-    }, [stats, selectedDate, isViewingToday, todayCount])
+        if (isViewingToday) return todayTotal
+        const d = selectedDate ?? today
+        return (
+            (stats.find((s) => s.date === d)?.count ?? 0) +
+            (dailyClicks.get(d) ?? 0)
+        )
+    }, [stats, dailyClicks, selectedDate, isViewingToday, todayTotal, today])
 
-    // Compare selected date vs today; or today vs yesterday
+    // Trend: compare total activity (keys + clicks)
     const trendPct = useMemo(() => {
         if (isViewingToday) {
-            return yesterdayCount > 0
+            return yesterdayTotal > 0
                 ? Math.round(
-                      ((todayCount - yesterdayCount) / yesterdayCount) * 100,
+                      ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100,
                   )
                 : null
         }
-        return todayCount > 0
-            ? Math.round(((heroCount - todayCount) / todayCount) * 100)
+        return todayTotal > 0
+            ? Math.round(((heroCount - todayTotal) / todayTotal) * 100)
             : null
-    }, [isViewingToday, todayCount, yesterdayCount, heroCount])
+    }, [isViewingToday, todayTotal, yesterdayTotal, heroCount])
 
     const heroLabel = isViewingToday
-        ? "keystrokes today"
-        : `keystrokes · ${selectedDate}`
+        ? "actions today"
+        : `actions · ${selectedDate}`
 
     const daysWithData = useMemo(
         () => stats.filter((s) => s.count > 0),
