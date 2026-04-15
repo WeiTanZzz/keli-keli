@@ -353,6 +353,54 @@ mod tests {
         assert_eq!(right, 1);
     }
 
+    #[test]
+    fn middle_and_unknown_button_clicks_are_ignored() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app_click("Safari", 2); // middle — should be ignored
+        s.increment_today_app_click("Safari", 99); // unknown — should be ignored
+
+        let click_stats = s.get_app_click_stats(7);
+        assert!(
+            click_stats.is_empty(),
+            "buttons other than 0/1 should not be recorded"
+        );
+    }
+
+    #[test]
+    fn get_app_click_stats_truncates_to_most_recent_n_days() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        // Manually build app_left_click_counts across 5 dates
+        let mut left: HashMap<String, HashMap<String, u64>> = HashMap::new();
+        for i in 1u64..=5 {
+            let mut apps = HashMap::new();
+            apps.insert("Chrome".to_string(), i * 10);
+            left.insert(format!("2024-01-{i:02}"), apps);
+        }
+        let json = serde_json::to_string_pretty(&StatsData {
+            app_left_click_counts: left,
+            ..Default::default()
+        })
+        .unwrap();
+        fs::write(&path, json).unwrap();
+
+        let s = Storage::load_from(path);
+        // Request only 3 most-recent days (01-03, 01-04, 01-05)
+        let stats = s.get_app_click_stats(3);
+        let dates: Vec<_> = stats.iter().map(|(d, _, _, _)| d.as_str()).collect();
+        assert!(
+            dates.iter().all(|d| *d >= "2024-01-03"),
+            "only the 3 most recent dates should appear, got: {dates:?}"
+        );
+        assert_eq!(
+            stats.len(),
+            3,
+            "expected 3 entries, got {}",
+            stats.len()
+        );
+    }
+
     // This test verifies that a poisoned Mutex does NOT cause a panic.
     // It will FAIL until the .unwrap() calls are replaced with
     // .unwrap_or_else(|e| e.into_inner()).
