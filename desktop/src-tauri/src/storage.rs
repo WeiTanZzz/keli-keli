@@ -8,9 +8,12 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct StatsData {
     pub counts: HashMap<String, u64>,
-    /// date → app_name → keystroke_count  (non-breaking: defaults to empty on old data)
+    /// date → app_name → keystroke_count
     #[serde(default)]
     pub app_counts: HashMap<String, HashMap<String, u64>>,
+    /// date → app_name → mouse_click_count
+    #[serde(default)]
+    pub app_click_counts: HashMap<String, HashMap<String, u64>>,
 }
 
 struct StorageInner {
@@ -64,6 +67,34 @@ impl Storage {
             .or_default()
             .entry(app.to_string())
             .or_insert(0) += 1;
+    }
+
+    pub fn increment_today_app_click(&self, app: &str) {
+        let today = today_key();
+        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        *data
+            .app_click_counts
+            .entry(today)
+            .or_default()
+            .entry(app.to_string())
+            .or_insert(0) += 1;
+    }
+
+    pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64)> {
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dates: Vec<&String> = data.app_click_counts.keys().collect();
+        dates.sort_by(|a, b| b.cmp(a));
+        dates.truncate(days);
+        let mut entries: Vec<(String, String, u64)> = dates
+            .into_iter()
+            .flat_map(|date| {
+                data.app_click_counts[date]
+                    .iter()
+                    .map(|(app, count)| (date.clone(), app.clone(), *count))
+            })
+            .collect();
+        entries.sort_by(|a, b| b.0.cmp(&a.0).then(b.2.cmp(&a.2)));
+        entries
     }
 
     pub fn today_count(&self) -> u64 {
@@ -222,6 +253,35 @@ mod tests {
             h.join().unwrap();
         }
         assert_eq!(s.today_count(), 100);
+    }
+
+    #[test]
+    fn mouse_clicks_tracked_separately_from_keystrokes() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app("Safari");
+        s.increment_today_app("Safari");
+        s.increment_today_app_click("Safari");
+
+        let key_stats = s.get_app_stats(7);
+        let click_stats = s.get_app_click_stats(7);
+
+        assert_eq!(key_stats.iter().find(|(_, a, _)| a == "Safari").unwrap().2, 2);
+        assert_eq!(click_stats.iter().find(|(_, a, _)| a == "Safari").unwrap().2, 1);
+    }
+
+    #[test]
+    fn mouse_clicks_persist_across_reload() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("data.json");
+
+        let s = Storage::load_from(path.clone());
+        s.increment_today_app_click("Finder");
+        s.increment_today_app_click("Finder");
+        s.save();
+
+        let s2 = Storage::load_from(path);
+        let stats = s2.get_app_click_stats(7);
+        assert_eq!(stats.iter().find(|(_, a, _)| a == "Finder").unwrap().2, 2);
     }
 
     // This test verifies that a poisoned Mutex does NOT cause a panic.

@@ -290,25 +290,56 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
 
 type AppPeriod = "day" | "week" | "all"
 
-function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
+function AppBreakdownChart({
+    appStats,
+    clickStats,
+}: {
+    appStats: AppStat[]
+    clickStats: AppStat[]
+}) {
     const [period, setPeriod] = useState<AppPeriod>("all")
 
-    const filteredStats = useMemo(() => {
+    const filterByPeriod = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10)
-        if (period === "day") {
-            return appStats.filter((s) => s.date === today)
+        const weekAgo = new Date(Date.now() - 7 * 86400000)
+            .toISOString()
+            .slice(0, 10)
+        return (stats: AppStat[]) => {
+            if (period === "day") return stats.filter((s) => s.date === today)
+            if (period === "week") return stats.filter((s) => s.date >= weekAgo)
+            return stats
         }
-        if (period === "week") {
-            const weekAgo = new Date(Date.now() - 7 * 86400000)
-                .toISOString()
-                .slice(0, 10)
-            return appStats.filter((s) => s.date >= weekAgo)
-        }
-        return appStats
-    }, [appStats, period])
+    }, [period])
 
-    const data = useMemo(() => computeAppTotals(filteredStats), [filteredStats])
-    const max = Math.max(...data.map((d) => d.count), 1)
+    const keyData = useMemo(
+        () => computeAppTotals(filterByPeriod(appStats)),
+        [appStats, filterByPeriod],
+    )
+    const clickData = useMemo(
+        () => computeAppTotals(filterByPeriod(clickStats)),
+        [clickStats, filterByPeriod],
+    )
+
+    // Merge: all apps that appear in either dataset
+    const merged = useMemo(() => {
+        const clickMap = new Map(clickData.map((d) => [d.app, d.count]))
+        const all = keyData.map(({ app, count }) => ({
+            app,
+            keys: count,
+            clicks: clickMap.get(app) ?? 0,
+        }))
+        // Apps with only clicks (no keystrokes)
+        for (const { app, count } of clickData) {
+            if (!all.find((d) => d.app === app)) {
+                all.push({ app, keys: 0, clicks: count })
+            }
+        }
+        return all
+            .sort((a, b) => b.keys + b.clicks - (a.keys + a.clicks))
+            .slice(0, 10)
+    }, [keyData, clickData])
+
+    const max = Math.max(...merged.map((d) => d.keys + d.clicks), 1)
 
     const periods: { id: AppPeriod; label: string }[] = [
         { id: "day", label: "Today" },
@@ -318,32 +349,44 @@ function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
 
     return (
         <div className="flex flex-col gap-3">
-            {/* Period selector */}
-            <div className="flex gap-1">
-                {periods.map(({ id, label }) => (
-                    <button
-                        key={id}
-                        type="button"
-                        onClick={() => setPeriod(id)}
-                        className={cn(
-                            "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
-                            period === id
-                                ? "bg-indigo-500 text-white font-medium"
-                                : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
-                        )}
-                    >
-                        {label}
-                    </button>
-                ))}
+            {/* Period selector + legend */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-1">
+                    {periods.map(({ id, label }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            onClick={() => setPeriod(id)}
+                            className={cn(
+                                "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
+                                period === id
+                                    ? "bg-indigo-500 text-white font-medium"
+                                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                            )}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2.5 text-[10px] text-zinc-400">
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-sm bg-indigo-400" />
+                        Keys
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-sm bg-rose-400" />
+                        Clicks
+                    </span>
+                </div>
             </div>
 
-            {data.length === 0 ? (
+            {merged.length === 0 ? (
                 <p className="text-xs text-zinc-400 text-center py-1">
                     No data yet — start typing!
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
-                    {data.map(({ app, count }) => (
+                    {merged.map(({ app, keys, clicks }) => (
                         <div key={app} className="flex items-center gap-2.5">
                             <AppIcon app={app} />
                             <span
@@ -352,14 +395,20 @@ function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
                             >
                                 {app}
                             </span>
-                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
                                 <div
-                                    className="h-full bg-indigo-400 rounded-full transition-all duration-500"
-                                    style={{ width: `${(count / max) * 100}%` }}
+                                    className="h-full bg-indigo-400 transition-all duration-500"
+                                    style={{ width: `${(keys / max) * 100}%` }}
+                                />
+                                <div
+                                    className="h-full bg-rose-400 transition-all duration-500"
+                                    style={{
+                                        width: `${(clicks / max) * 100}%`,
+                                    }}
                                 />
                             </div>
                             <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                                {count.toLocaleString()}
+                                {(keys + clicks).toLocaleString()}
                             </span>
                         </div>
                     ))}
@@ -440,9 +489,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function StatisticsSection({
     stats,
     appStats,
+    clickStats,
 }: {
     stats: DayStat[]
     appStats: AppStat[]
+    clickStats: AppStat[]
 }) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = new Date().toISOString().slice(0, 10)
@@ -604,7 +655,10 @@ function StatisticsSection({
                 <SectionTitle>By App</SectionTitle>
                 <Card>
                     <div className="px-4 py-3">
-                        <AppBreakdownChart appStats={appStats} />
+                        <AppBreakdownChart
+                            appStats={appStats}
+                            clickStats={clickStats}
+                        />
                     </div>
                 </Card>
             </div>
@@ -810,6 +864,7 @@ export default function Settings() {
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
+    const [clickStats, setClickStats] = useState<AppStat[]>([])
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -849,10 +904,27 @@ export default function Settings() {
             },
         )
 
+        const unlistenClick = listen<{ app: string }>("click", (e) => {
+            setClickStats((prev) => {
+                const exists = prev.some(
+                    (s) => s.date === today && s.app === e.payload.app,
+                )
+                if (exists) {
+                    return prev.map((s) =>
+                        s.date === today && s.app === e.payload.app
+                            ? { ...s, count: s.count + 1 }
+                            : s,
+                    )
+                }
+                return [...prev, { date: today, app: e.payload.app, count: 1 }]
+            })
+        })
+
         api.getConfig().then(setCfg)
         api.getAutostart().then(setAutostart)
         api.getStats(90).then(setStats)
         api.getAppStats(90).then(setAppStats)
+        api.getAppClickStats(90).then(setClickStats)
         api.checkUpdate()
             .then((info) => {
                 if (info.available && info.latest) {
@@ -874,6 +946,7 @@ export default function Settings() {
 
         return () => {
             unlisten.then((f) => f())
+            unlistenClick.then((f) => f())
         }
     }, [])
 
@@ -952,7 +1025,11 @@ export default function Settings() {
             <main className="flex flex-col flex-1 min-w-0">
                 <div className="flex-1 overflow-y-auto p-5">
                     {active === "statistics" && (
-                        <StatisticsSection stats={stats} appStats={appStats} />
+                        <StatisticsSection
+                            stats={stats}
+                            appStats={appStats}
+                            clickStats={clickStats}
+                        />
                     )}
                     {active === "general" && cfg && (
                         <GeneralSection

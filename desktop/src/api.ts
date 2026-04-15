@@ -45,6 +45,9 @@ export const api = {
     getAppStats: (days: number): Promise<AppStat[]> =>
         invoke<AppStat[]>("get_app_stats", { days }),
 
+    getAppClickStats: (days: number): Promise<AppStat[]> =>
+        invoke<AppStat[]>("get_app_click_stats", { days }),
+
     checkUpdate: (): Promise<UpdateInfo> => invoke<UpdateInfo>("check_update"),
 
     installUpdate: (): Promise<void> => invoke("install_update"),

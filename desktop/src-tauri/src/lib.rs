@@ -23,6 +23,11 @@ struct KeystrokePayload {
     app: String,
 }
 
+#[derive(serde::Serialize, Clone)]
+struct ClickPayload {
+    app: String,
+}
+
 #[derive(serde::Serialize)]
 struct DayStat {
     date: String,
@@ -73,6 +78,15 @@ fn get_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<DaySta
 fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppStat> {
     storage
         .get_app_stats(days)
+        .into_iter()
+        .map(|(date, app, count)| AppStat { date, app, count })
+        .collect()
+}
+
+#[tauri::command]
+fn get_app_click_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppStat> {
+    storage
+        .get_app_click_stats(days)
         .into_iter()
         .map(|(date, app, count)| AppStat { date, app, count })
         .collect()
@@ -301,6 +315,7 @@ pub fn run() {
             save_config,
             get_stats,
             get_app_stats,
+            get_app_click_stats,
             get_autostart,
             set_autostart,
             check_update,
@@ -467,6 +482,15 @@ async fn key_loop(
         tokio::select! {
             event = key_rx.recv() => {
                 match event {
+                    Some(KeyEvent::MouseClick { app: ref app_name }) => {
+                        storage.increment_today_app_click(app_name);
+                        app.emit("click", ClickPayload { app: app_name.clone() }).ok();
+                        last_key = Instant::now();
+                        if last_flush.elapsed() >= flush_duration {
+                            storage.save();
+                            last_flush = Instant::now();
+                        }
+                    }
                     Some(KeyEvent::KeyPress { app: ref app_name }) => {
                         let count = storage.increment_today();
                         storage.increment_today_app(app_name);
