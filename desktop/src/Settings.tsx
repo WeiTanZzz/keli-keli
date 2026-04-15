@@ -85,9 +85,11 @@ function computeDayOfWeekAvg(
 function Tip({
     children,
     content,
+    side = "top",
 }: {
     children: React.ReactNode
     content: React.ReactNode
+    side?: "top" | "bottom"
 }) {
     const [show, setShow] = useState(false)
     return (
@@ -98,7 +100,14 @@ function Tip({
         >
             {children}
             {show && (
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 bg-zinc-800/95 text-white text-[10px] rounded-md px-2 py-1 whitespace-nowrap pointer-events-none shadow-lg">
+                <div
+                    className={cn(
+                        "absolute left-1/2 -translate-x-1/2 z-50 bg-zinc-800/95 text-white text-[10px] rounded-md px-2 py-1 whitespace-nowrap pointer-events-none shadow-lg",
+                        side === "top"
+                            ? "bottom-full mb-1.5"
+                            : "top-full mt-1.5",
+                    )}
+                >
                     {content}
                 </div>
             )}
@@ -365,6 +374,7 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
             {dowData.map(({ label, avg }) => (
                 <Tip
                     key={label}
+                    side="bottom"
                     content={
                         avg > 0 ? (
                             <span>
@@ -595,11 +605,11 @@ function StatChip({
     sub?: string
 }) {
     return (
-        <div className="flex flex-col gap-1 p-3">
-            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+        <div className="flex flex-col gap-1.5 p-4">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
                 {label}
             </span>
-            <span className="text-xl font-bold text-zinc-800 tabular-nums leading-none">
+            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-none">
                 {value}
             </span>
             {sub && (
@@ -645,9 +655,12 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return (
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-            {children}
-        </h2>
+        <div className="flex items-center gap-2 mb-1">
+            <span className="w-1 h-3.5 rounded-full bg-indigo-400 shrink-0" />
+            <h2 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">
+                {children}
+            </h2>
+        </div>
     )
 }
 
@@ -729,90 +742,89 @@ function StatisticsSection({
     )
 
     return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>Statistics</SectionTitle>
-
+        <div className="flex flex-col gap-6">
             {/* Hero + 30-day chart */}
-            <Card>
-                <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
-                    <div className="flex items-baseline justify-between">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                {heroCount.toLocaleString()}
-                            </span>
-                            {trendPct !== null && (
-                                <span className="flex items-baseline gap-1">
-                                    <span
-                                        className={cn(
-                                            "text-xs font-medium tabular-nums",
-                                            trendPct >= 0
-                                                ? "text-emerald-500"
-                                                : "text-red-400",
-                                        )}
-                                    >
-                                        {trendPct >= 0 ? "+" : ""}
-                                        {trendPct}%
-                                    </span>
-                                    {!isViewingToday && (
-                                        <span className="text-[10px] text-zinc-400">
-                                            vs today
-                                        </span>
-                                    )}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>Activity</SectionTitle>
+                <Card>
+                    <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
+                        <div className="flex items-baseline justify-between">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-bold text-zinc-900 tabular-nums">
+                                    {heroCount.toLocaleString()}
                                 </span>
-                            )}
+                                {trendPct !== null && (
+                                    <span className="flex items-baseline gap-1">
+                                        <span
+                                            className={cn(
+                                                "text-xs font-medium tabular-nums",
+                                                trendPct >= 0
+                                                    ? "text-emerald-500"
+                                                    : "text-red-400",
+                                            )}
+                                        >
+                                            {trendPct >= 0 ? "+" : ""}
+                                            {trendPct}%
+                                        </span>
+                                        {!isViewingToday && (
+                                            <span className="text-[10px] text-zinc-400">
+                                                vs today
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-xs text-zinc-400">
+                                {heroLabel}
+                            </span>
                         </div>
-                        <span className="text-xs text-zinc-400">
-                            {heroLabel}
-                        </span>
+                        <DailyBarChart
+                            stats={stats}
+                            clickStats={clickStats}
+                            selectedDate={selectedDate}
+                            onSelectDate={setSelectedDate}
+                        />
                     </div>
-                    <DailyBarChart
-                        stats={stats}
-                        clickStats={clickStats}
-                        selectedDate={selectedDate}
-                        onSelectDate={setSelectedDate}
-                    />
-                </div>
-            </Card>
 
-            {/* Stat chips */}
-            <Card>
-                <div className="grid grid-cols-2 divide-x divide-zinc-100">
-                    <StatChip
-                        label="Daily avg"
-                        value={avgCount.toLocaleString()}
-                        sub="keystrokes"
-                    />
-                    <StatChip
-                        label="Best day"
-                        value={bestDay.count.toLocaleString()}
-                        sub={bestDay.date ? bestDay.date.slice(5) : undefined}
-                    />
-                </div>
-                <div className="grid grid-cols-2 divide-x divide-zinc-100 border-t border-zinc-100">
-                    <StatChip
-                        label="Streak"
-                        value={streak > 0 ? `${streak}d` : "—"}
-                        sub={streak > 0 ? "in a row" : "no streak"}
-                    />
-                    <StatChip
-                        label="All time"
-                        value={
-                            allTimeTotal >= 1_000_000
-                                ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
-                                : allTimeTotal >= 1_000
-                                  ? `${(allTimeTotal / 1_000).toFixed(1)}K`
-                                  : allTimeTotal.toLocaleString()
-                        }
-                        sub="keystrokes"
-                    />
-                </div>
-            </Card>
+                    {/* Stat chips — 4 columns inline */}
+                    <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
+                        <StatChip
+                            label="Daily avg"
+                            value={avgCount.toLocaleString()}
+                            sub="keystrokes"
+                        />
+                        <StatChip
+                            label="Best day"
+                            value={bestDay.count.toLocaleString()}
+                            sub={
+                                bestDay.date ? bestDay.date.slice(5) : undefined
+                            }
+                        />
+                        <StatChip
+                            label="Streak"
+                            value={streak > 0 ? `${streak}d` : "—"}
+                            sub={streak > 0 ? "in a row" : "no streak"}
+                        />
+                        <StatChip
+                            label="All time"
+                            value={
+                                allTimeTotal >= 1_000_000
+                                    ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
+                                    : allTimeTotal >= 1_000
+                                      ? `${(allTimeTotal / 1_000).toFixed(1)}K`
+                                      : allTimeTotal.toLocaleString()
+                            }
+                            sub="keystrokes"
+                        />
+                    </div>
+                </Card>
+            </div>
 
             {/* Day-of-week pattern */}
             <div className="flex flex-col gap-2">
                 <SectionTitle>By Day of Week</SectionTitle>
                 <Card>
-                    <div className="px-4 py-3">
+                    <div className="px-4 py-4">
                         <DayOfWeekChart stats={stats} />
                     </div>
                 </Card>
@@ -822,7 +834,7 @@ function StatisticsSection({
             <div className="flex flex-col gap-2">
                 <SectionTitle>By App</SectionTitle>
                 <Card>
-                    <div className="px-4 py-3">
+                    <div className="px-4 py-4">
                         <AppBreakdownChart
                             appStats={appStats}
                             clickStats={clickStats}

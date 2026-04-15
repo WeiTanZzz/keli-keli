@@ -300,15 +300,15 @@ mod tests {
         let key_stats = s.get_app_stats(7);
         let click_stats = s.get_app_click_stats(7);
 
-        let (_, _, key_count) = key_stats
+        let key_count = key_stats
             .iter()
             .find(|(_, a, _)| a == "Safari")
-            .copied()
+            .map(|(_, _, c)| *c)
             .unwrap();
-        let (_, _, left, right) = click_stats
+        let (left, right) = click_stats
             .iter()
             .find(|(_, a, _, _)| a == "Safari")
-            .copied()
+            .map(|(_, _, l, r)| (*l, *r))
             .unwrap();
         assert_eq!(key_count, 2);
         assert_eq!(left, 1);
@@ -323,10 +323,10 @@ mod tests {
         s.increment_today_app_click("Finder", 1); // right
 
         let click_stats = s.get_app_click_stats(7);
-        let (_, _, left, right) = click_stats
+        let (left, right) = click_stats
             .iter()
             .find(|(_, a, _, _)| a == "Finder")
-            .copied()
+            .map(|(_, _, l, r)| (*l, *r))
             .unwrap();
         assert_eq!(left, 2);
         assert_eq!(right, 1);
@@ -344,10 +344,10 @@ mod tests {
 
         let s2 = Storage::load_from(path);
         let click_stats = s2.get_app_click_stats(7);
-        let (_, _, left, right) = click_stats
+        let (left, right) = click_stats
             .iter()
             .find(|(_, a, _, _)| a == "Finder")
-            .copied()
+            .map(|(_, _, l, r)| (*l, *r))
             .unwrap();
         assert_eq!(left, 1);
         assert_eq!(right, 1);
