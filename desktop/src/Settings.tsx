@@ -463,16 +463,23 @@ function StatisticsSection({
                                 {heroCount.toLocaleString()}
                             </span>
                             {trendPct !== null && (
-                                <span
-                                    className={cn(
-                                        "text-xs font-medium tabular-nums",
-                                        trendPct >= 0
-                                            ? "text-emerald-500"
-                                            : "text-red-400",
+                                <span className="flex items-baseline gap-1">
+                                    <span
+                                        className={cn(
+                                            "text-xs font-medium tabular-nums",
+                                            trendPct >= 0
+                                                ? "text-emerald-500"
+                                                : "text-red-400",
+                                        )}
+                                    >
+                                        {trendPct >= 0 ? "+" : ""}
+                                        {trendPct}%
+                                    </span>
+                                    {!isViewingToday && (
+                                        <span className="text-[10px] text-zinc-400">
+                                            vs today
+                                        </span>
                                     )}
-                                >
-                                    {trendPct >= 0 ? "+" : ""}
-                                    {trendPct}%
                                 </span>
                             )}
                         </div>
