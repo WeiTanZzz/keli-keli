@@ -101,7 +101,7 @@ function DailyBarChart({ stats }: { stats: DayStat[] }) {
                                 className={cn(
                                     "w-full rounded-sm transition-all duration-150 group-hover:opacity-70",
                                     isToday
-                                        ? "bg-indigo-500"
+                                        ? "bg-blue-500"
                                         : isWeekend
                                           ? "bg-zinc-300"
                                           : "bg-zinc-200",
@@ -138,7 +138,7 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
                     </span>
                     <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
                             style={{ width: `${(avg / max) * 100}%` }}
                         />
                     </div>
@@ -173,7 +173,7 @@ function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
                     </span>
                     <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
                             style={{ width: `${(count / max) * 100}%` }}
                         />
                     </div>
@@ -575,7 +575,7 @@ function AboutSection({
                         </div>
                     )}
                     {update.status === "installing" && (
-                        <span className="text-xs text-indigo-500">
+                        <span className="text-xs text-blue-500">
                             Installing, restarting shortly…
                         </span>
                     )}
@@ -697,9 +697,9 @@ export default function Settings() {
     const showSave = active !== "statistics" && active !== "about"
 
     return (
-        <div className="flex h-screen bg-zinc-100 font-sans select-none overflow-hidden">
+        <div className="flex h-screen bg-[#F2F2F7] font-sans select-none overflow-hidden">
             {/* Sidebar */}
-            <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
+            <aside className="w-44 flex flex-col border-r border-zinc-200/60 bg-white/80 shrink-0">
                 {/* Logo */}
                 <div className="flex items-center gap-2 px-4 py-4">
                     <span className="text-lg">⌨️</span>
@@ -723,7 +723,7 @@ export default function Settings() {
                                 className={cn(
                                     "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-left w-full transition-colors",
                                     isActive
-                                        ? "bg-indigo-500 text-white shadow-sm"
+                                        ? "bg-blue-500 text-white shadow-sm"
                                         : "text-zinc-600 hover:bg-zinc-200/70",
                                 )}
                             >

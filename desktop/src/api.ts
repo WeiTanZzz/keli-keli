@@ -48,4 +48,13 @@ export const api = {
     checkUpdate: (): Promise<UpdateInfo> => invoke<UpdateInfo>("check_update"),
 
     installUpdate: (): Promise<void> => invoke("install_update"),
+
+    toggleIndicator: (): Promise<void> => invoke("toggle_indicator"),
+
+    getIndicatorVisible: (): Promise<boolean> =>
+        invoke<boolean>("get_indicator_visible"),
+
+    openSettings: (): Promise<void> => invoke("open_settings_cmd"),
+
+    quitApp: (): Promise<void> => invoke("quit_app"),
 }

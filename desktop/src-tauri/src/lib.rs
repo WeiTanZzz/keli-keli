@@ -7,15 +7,11 @@ use hook::KeyEvent;
 use std::sync::{Arc, Mutex};
 use tauri::{
     image::Image as TrayImage,
-    menu::{MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem},
-    tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Wry,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager,
 };
 use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant};
-
-struct CountItem(Mutex<MenuItem<Wry>>);
-struct ToggleItem(Mutex<MenuItem<Wry>>);
 
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
@@ -134,6 +130,36 @@ fn set_autostart(app: AppHandle, enabled: bool) {
     }
 }
 
+#[tauri::command]
+fn toggle_indicator(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            win.hide().ok();
+        } else {
+            win.show().ok();
+            win.set_focus().ok();
+        }
+    }
+}
+
+#[tauri::command]
+fn get_indicator_visible(app: AppHandle) -> bool {
+    app.get_webview_window("main")
+        .map(|w| w.is_visible().unwrap_or(false))
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+fn open_settings_cmd(app: AppHandle) {
+    open_settings_window(&app);
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 #[cfg(target_os = "macos")]
 fn make_webview_transparent(win: &tauri::WebviewWindow) {
     use objc::runtime::{Class, Object, NO};
@@ -160,6 +186,32 @@ fn make_webview_transparent(win: &tauri::WebviewWindow) {
             // CanJoinAllSpaces (1) | Stationary (16) | FullScreenAuxiliary (256)
             let existing: usize = msg_send![ns_window, collectionBehavior];
             let _: () = msg_send![ns_window, setCollectionBehavior: existing | 1 | 16 | 256];
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn make_popup_transparent(win: &tauri::WebviewWindow) {
+    use objc::runtime::{Class, Object, NO};
+    use objc::{msg_send, sel, sel_impl};
+    if let Ok(ptr) = win.ns_window() {
+        unsafe {
+            let ns_window = ptr as *mut Object;
+            let clear: *mut Object = msg_send![Class::get("NSColor").unwrap(), clearColor];
+            let _: () = msg_send![ns_window, setOpaque: NO];
+            let _: () = msg_send![ns_window, setBackgroundColor: clear];
+            let content: *mut Object = msg_send![ns_window, contentView];
+            let _: () = msg_send![content, setOpaque: NO];
+            let _: () = msg_send![content, setBackgroundColor: clear];
+            let subviews: *mut Object = msg_send![content, subviews];
+            let count: usize = msg_send![subviews, count];
+            for i in 0..count {
+                let view: *mut Object = msg_send![subviews, objectAtIndex: i];
+                let _: () = msg_send![view, setOpaque: NO];
+                let _: () = msg_send![view, setBackgroundColor: clear];
+            }
+            // NSPopUpMenuWindowLevel (101) — appears above the menu bar
+            let _: () = msg_send![ns_window, setLevel: 101i64];
         }
     }
 }
@@ -200,7 +252,11 @@ pub fn run() {
             get_autostart,
             set_autostart,
             check_update,
-            install_update
+            install_update,
+            toggle_indicator,
+            get_indicator_visible,
+            open_settings_cmd,
+            quit_app
         ])
         .setup(move |app| {
             // Set activation policy FIRST, before any window is created.
@@ -257,66 +313,91 @@ pub fn run() {
             ));
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+        .on_window_event(|window, event| match window.label() {
+            "main" => {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     window.hide().ok();
                     api.prevent_close();
                 }
             }
+            "dashboard" => match event {
+                tauri::WindowEvent::Focused(false) => {
+                    window.hide().ok();
+                }
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    window.hide().ok();
+                    api.prevent_close();
+                }
+                _ => {}
+            },
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error running tauri app");
 }
 
 fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let count = MenuItemBuilder::with_id("count", "Today: 0 keystrokes")
-        .enabled(false)
-        .build(app)?;
-    let sep0 = PredefinedMenuItem::separator(app)?;
-    let toggle = MenuItemBuilder::with_id("toggle", "Hide Indicator").build(app)?;
-    let settings = MenuItemBuilder::with_id("settings", "Settings…").build(app)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "Quit KeliKeli").build(app)?;
-
-    let menu = MenuBuilder::new(app)
-        .items(&[&count, &sep0, &toggle, &settings, &sep, &quit])
-        .build()?;
-
-    app.manage(CountItem(Mutex::new(count)));
-    app.manage(ToggleItem(Mutex::new(toggle)));
-
     TrayIconBuilder::with_id("main-tray")
         .icon(build_tray_icon())
         .tooltip("KeliKeli")
-        .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "toggle" => {
-                if let Some(win) = app.get_webview_window("main") {
-                    let visible = win.is_visible().unwrap_or(false);
-                    if visible {
-                        win.hide().ok();
-                    } else {
-                        win.show().ok();
-                        win.set_focus().ok();
-                    }
-                    if let Ok(item) = app.state::<ToggleItem>().0.lock() {
-                        item.set_text(if visible {
-                            "Show Indicator"
-                        } else {
-                            "Hide Indicator"
-                        })
-                        .ok();
-                    }
-                }
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                position,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                toggle_dashboard_window(app, position);
             }
-            "settings" => open_settings_window(app),
-            "quit" => app.exit(0),
-            _ => {}
         })
         .build(app)?;
     Ok(())
+}
+
+fn toggle_dashboard_window(app: &AppHandle, cursor: tauri::PhysicalPosition<f64>) {
+    if let Some(win) = app.get_webview_window("dashboard") {
+        if win.is_visible().unwrap_or(false) {
+            win.hide().ok();
+        } else {
+            position_dashboard(&win, cursor);
+            win.show().ok();
+            win.set_focus().ok();
+        }
+    } else {
+        let win = tauri::WebviewWindowBuilder::new(
+            app,
+            "dashboard",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .title("KeliKeli")
+        .inner_size(280.0, 240.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .accept_first_mouse(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build();
+
+        if let Ok(win) = win {
+            #[cfg(target_os = "macos")]
+            make_popup_transparent(&win);
+            position_dashboard(&win, cursor);
+            win.show().ok();
+            win.set_focus().ok();
+        }
+    }
+}
+
+fn position_dashboard(win: &tauri::WebviewWindow, cursor: tauri::PhysicalPosition<f64>) {
+    let scale = win.scale_factor().unwrap_or(1.0);
+    let win_w = (280.0 * scale) as i32;
+    let x = (cursor.x as i32) - win_w / 2;
+    let y = (cursor.y as i32) + 6;
+    win.set_position(tauri::PhysicalPosition { x, y }).ok();
 }
 
 fn open_settings_window(app: &AppHandle) {
@@ -369,10 +450,7 @@ async fn key_loop(
                             KeystrokePayload { count, app: app_name.clone() },
                         )
                         .ok();
-                        if let Ok(item) = app.state::<CountItem>().0.lock() {
-                            item.set_text(format!("Today: {count} keystrokes")).ok();
-                        }
-                        if !is_typing {
+                                        if !is_typing {
                             is_typing = true;
                             if let Some(tx) = &ws_tx {
                                 tx.send(WsEvent::TypingStart).ok();
