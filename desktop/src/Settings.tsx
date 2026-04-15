@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
     type AppClickStat,
     type AppStat,
@@ -85,28 +85,30 @@ function computeDayOfWeekAvg(
 function Tip({
     children,
     content,
-    side = "top",
 }: {
     children: React.ReactNode
     content: React.ReactNode
-    side?: "top" | "bottom"
 }) {
-    const [show, setShow] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+    const [rect, setRect] = useState<DOMRect | null>(null)
+
     return (
         <div
-            className="relative"
-            onMouseEnter={() => setShow(true)}
-            onMouseLeave={() => setShow(false)}
+            ref={ref}
+            onMouseEnter={() =>
+                setRect(ref.current?.getBoundingClientRect() ?? null)
+            }
+            onMouseLeave={() => setRect(null)}
         >
             {children}
-            {show && (
+            {rect && (
                 <div
-                    className={cn(
-                        "absolute left-1/2 -translate-x-1/2 z-50 bg-zinc-800/95 text-white text-[10px] rounded-md px-2 py-1 whitespace-nowrap pointer-events-none shadow-lg",
-                        side === "top"
-                            ? "bottom-full mb-1.5"
-                            : "top-full mt-1.5",
-                    )}
+                    className="fixed z-[9999] -translate-x-1/2 bg-zinc-800/95 text-white text-[10px] rounded-md px-2 py-1 whitespace-nowrap pointer-events-none shadow-lg"
+                    style={{
+                        left: rect.left + rect.width / 2,
+                        top: rect.top - 6,
+                        transform: "translate(-50%, -100%)",
+                    }}
                 >
                     {content}
                 </div>
@@ -374,7 +376,6 @@ function DayOfWeekChart({ stats }: { stats: DayStat[] }) {
             {dowData.map(({ label, avg }) => (
                 <Tip
                     key={label}
-                    side="bottom"
                     content={
                         avg > 0 ? (
                             <span>
