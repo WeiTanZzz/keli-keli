@@ -97,7 +97,9 @@ function getAppColor(app: string): string {
 }
 
 function AppIcon({ app }: { app: string }) {
-    return (
+    const [failed, setFailed] = useState(false)
+    const slug = app.toLowerCase().replace(/\s+/g, "")
+    const fallback = (
         <div
             className={cn(
                 "w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
@@ -106,6 +108,15 @@ function AppIcon({ app }: { app: string }) {
         >
             {app.charAt(0).toUpperCase()}
         </div>
+    )
+    if (failed) return fallback
+    return (
+        <img
+            src={`https://cdn.simpleicons.org/${slug}`}
+            alt={app}
+            className="w-5 h-5 rounded-md shrink-0 object-contain"
+            onError={() => setFailed(true)}
+        />
     )
 }
 
