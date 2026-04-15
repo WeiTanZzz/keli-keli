@@ -393,12 +393,7 @@ mod tests {
             dates.iter().all(|d| *d >= "2024-01-03"),
             "only the 3 most recent dates should appear, got: {dates:?}"
         );
-        assert_eq!(
-            stats.len(),
-            3,
-            "expected 3 entries, got {}",
-            stats.len()
-        );
+        assert_eq!(stats.len(), 3, "expected 3 entries, got {}", stats.len());
     }
 
     // This test verifies that a poisoned Mutex does NOT cause a panic.
