@@ -307,10 +307,7 @@ function AppBreakdownChart({ appStats }: { appStats: AppStat[] }) {
         return appStats
     }, [appStats, period])
 
-    const data = useMemo(
-        () => computeAppTotals(filteredStats),
-        [filteredStats],
-    )
+    const data = useMemo(() => computeAppTotals(filteredStats), [filteredStats])
     const max = Math.max(...data.map((d) => d.count), 1)
 
     const periods: { id: AppPeriod; label: string }[] = [
