@@ -60,6 +60,7 @@ struct UpdateStatus {
 
 enum WsEvent {
     Keystroke(u64),
+    Click { app: String, button: u8 },
     TypingStart,
     TypingStop,
 }
@@ -510,6 +511,13 @@ async fn key_loop(
                             },
                         )
                         .ok();
+                        if let Some(tx) = &ws_tx {
+                            tx.send(WsEvent::Click {
+                                app: app_name.clone(),
+                                button,
+                            })
+                            .ok();
+                        }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
                             storage.save();
@@ -563,10 +571,16 @@ async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &con
     }
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let count = storage.today_count();
+    let (left_clicks, right_clicks) = storage.today_click_counts();
     client
         .post(&cfg.api_url)
         .bearer_auth(&cfg.api_key)
-        .json(&serde_json::json!({ "date": today, "count": count }))
+        .json(&serde_json::json!({
+            "date": today,
+            "count": count,
+            "left_clicks": left_clicks,
+            "right_clicks": right_clicks,
+        }))
         .send()
         .await
         .ok();
@@ -619,6 +633,17 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                             let payload = match event {
                                 WsEvent::Keystroke(count) => {
                                     serde_json::json!({ "type": "keystroke", "count": count })
+                                }
+                                WsEvent::Click { app, button } => {
+                                    let click_type = if button == 0 {
+                                        "left_click"
+                                    } else {
+                                        "right_click"
+                                    };
+                                    serde_json::json!({
+                                        "type": click_type,
+                                        "app": app,
+                                    })
                                 }
                                 WsEvent::TypingStart => {
                                     serde_json::json!({ "type": "typing_start" })
@@ -687,9 +712,12 @@ mod tests {
         let mock = server
             .mock("POST", "/")
             .match_header("authorization", "Bearer test-key")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 3u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "date": today,
+                "count": 3u64,
+                "left_clicks": 2u64,
+                "right_clicks": 1u64,
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
@@ -699,6 +727,9 @@ mod tests {
         for _ in 0..3 {
             storage.increment_today();
         }
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 1);
 
         let client = reqwest::Client::new();
         do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
@@ -752,9 +783,12 @@ mod tests {
 
         let mock = server
             .mock("POST", "/")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 0u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "date": today,
+                "count": 0u64,
+                "left_clicks": 0u64,
+                "right_clicks": 0u64,
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
@@ -765,6 +799,42 @@ mod tests {
         do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
 
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn ws_delivers_left_and_right_click_events() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut ws = accept_async(stream).await.unwrap();
+
+        tx.send(WsEvent::Click { app: "Finder".into(), button: 0 }).unwrap();
+        tx.send(WsEvent::Click { app: "Finder".into(), button: 1 }).unwrap();
+
+        let left_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let left = parse_ws_msg(&left_msg);
+        assert_eq!(left["type"], "left_click");
+        assert_eq!(left["app"], "Finder");
+
+        let right_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let right = parse_ws_msg(&right_msg);
+        assert_eq!(right["type"], "right_click");
+        assert_eq!(right["app"], "Finder");
     }
 
     // ── ws_loop tests ────────────────────────────────────────────────────────

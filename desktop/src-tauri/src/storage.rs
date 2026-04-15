@@ -138,6 +138,23 @@ impl Storage {
         *data.counts.get(&today).unwrap_or(&0)
     }
 
+    /// Returns (left_clicks, right_clicks) totals across all apps for today.
+    pub fn today_click_counts(&self) -> (u64, u64) {
+        let today = today_key();
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let left = data
+            .app_left_click_counts
+            .get(&today)
+            .map(|m| m.values().sum())
+            .unwrap_or(0);
+        let right = data
+            .app_right_click_counts
+            .get(&today)
+            .map(|m| m.values().sum())
+            .unwrap_or(0);
+        (left, right)
+    }
+
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         let mut entries: Vec<_> = data.counts.iter().collect();
@@ -288,6 +305,23 @@ mod tests {
             h.join().unwrap();
         }
         assert_eq!(s.today_count(), 100);
+    }
+
+    #[test]
+    fn today_click_counts_sums_across_all_apps() {
+        let (_dir, s) = temp_storage();
+        s.increment_today_app_click("Safari", 0);
+        s.increment_today_app_click("Finder", 0);
+        s.increment_today_app_click("Finder", 1);
+        let (left, right) = s.today_click_counts();
+        assert_eq!(left, 2);
+        assert_eq!(right, 1);
+    }
+
+    #[test]
+    fn today_click_counts_starts_at_zero() {
+        let (_dir, s) = temp_storage();
+        assert_eq!(s.today_click_counts(), (0, 0));
     }
 
     #[test]
