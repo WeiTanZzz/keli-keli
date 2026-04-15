@@ -2,9 +2,14 @@ use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum KeyEvent {
-    KeyPress { app: String },
+    KeyPress {
+        app: String,
+    },
     /// button: 0 = left, 1 = right, 2 = other/middle
-    MouseClick { app: String, button: u8 },
+    MouseClick {
+        app: String,
+        button: u8,
+    },
 }
 
 pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
@@ -137,8 +142,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
 
         loop {
             unsafe {
-                let tap =
-                    CGEventTapCreate(0, 0, 1, EVENT_MASK, tap_callback, std::ptr::null_mut());
+                let tap = CGEventTapCreate(0, 0, 1, EVENT_MASK, tap_callback, std::ptr::null_mut());
                 if tap.is_null() {
                     static PROMPTED: std::sync::atomic::AtomicBool =
                         std::sync::atomic::AtomicBool::new(false);

@@ -94,10 +94,7 @@ fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<Ap
 }
 
 #[tauri::command]
-fn get_app_click_stats(
-    days: usize,
-    storage: tauri::State<storage::Storage>,
-) -> Vec<AppClickStat> {
+fn get_app_click_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppClickStat> {
     storage
         .get_app_click_stats(days)
         .into_iter()
