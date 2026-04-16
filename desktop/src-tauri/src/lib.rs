@@ -514,8 +514,10 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
             "settings" => open_settings_window(app),
             "quit" => {
-                // Save any unsaved stats, then bypass the confirmation dialog
-                // (the user already made an explicit choice from the tray menu).
+                #[cfg(target_os = "macos")]
+                if !macos_confirm_quit() {
+                    return;
+                }
                 app.state::<storage::Storage>().save();
                 SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
                 app.exit(0);
@@ -546,7 +548,7 @@ fn open_settings_window(app: &AppHandle) {
 }
 
 fn build_tray_icon() -> TrayImage<'static> {
-    let bytes = include_bytes!("../icons/32x32.png");
+    let bytes = include_bytes!("../icons/icon.png");
     TrayImage::from_bytes(bytes).expect("failed to load tray icon")
 }
 
