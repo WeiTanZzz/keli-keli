@@ -461,8 +461,6 @@ fn make_webview_transparent(win: &tauri::WebviewWindow) {
 pub fn run() {
     let cfg = config::load();
     let storage = storage::Storage::load();
-    let idle_ms = cfg.websocket.typing_idle_ms;
-    let flush_secs = cfg.flush_interval_secs;
     let auto_update = cfg.auto_update;
 
     let ws_url = cfg
@@ -479,13 +477,16 @@ pub fn run() {
     let (key_tx, key_rx) = mpsc::unbounded_channel::<KeyEvent>();
     hook::start(key_tx);
 
+    let cfg_arc = Arc::new(Mutex::new(cfg));
+    let cfg_for_key_loop = Arc::clone(&cfg_arc);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Arc::new(Mutex::new(cfg)))
+        .manage(cfg_arc)
         .manage(storage.clone())
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -551,8 +552,7 @@ pub fn run() {
                 storage,
                 key_rx,
                 ws_tx,
-                idle_ms,
-                flush_secs,
+                cfg_for_key_loop,
             ));
             Ok(())
         })
@@ -772,16 +772,22 @@ async fn key_loop(
     storage: storage::Storage,
     mut key_rx: mpsc::UnboundedReceiver<KeyEvent>,
     ws_tx: Option<mpsc::UnboundedSender<WsEvent>>,
-    idle_ms: u64,
-    flush_secs: u64,
+    cfg_state: Arc<Mutex<config::Config>>,
 ) {
     let mut last_key = Instant::now();
     let mut last_flush = Instant::now();
     let mut is_typing = false;
-    let idle_duration = Duration::from_millis(idle_ms);
-    let flush_duration = Duration::from_secs(flush_secs);
 
     loop {
+        // Re-read config each iteration so flush interval and idle timeout
+        // reflect any changes the user saved without requiring a restart.
+        let (idle_ms, flush_secs) = {
+            let c = cfg_state.lock().unwrap_or_else(|e| e.into_inner());
+            (c.websocket.typing_idle_ms, c.flush_interval_secs)
+        };
+        let idle_duration = Duration::from_millis(idle_ms);
+        let flush_duration = Duration::from_secs(flush_secs);
+
         tokio::select! {
             event = key_rx.recv() => {
                 match event {
