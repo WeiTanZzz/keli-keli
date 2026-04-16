@@ -62,6 +62,8 @@ enum WsEvent {
     Keystroke(u64),
     TypingStart,
     TypingStop,
+    /// A single mouse click: button 0 = left, 1 = right.
+    Click { button: u8 },
 }
 
 #[tauri::command]
@@ -510,6 +512,11 @@ async fn key_loop(
                             },
                         )
                         .ok();
+                        if (button == 0 || button == 1) {
+                            if let Some(tx) = &ws_tx {
+                                tx.send(WsEvent::Click { button }).ok();
+                            }
+                        }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
                             storage.save();
@@ -563,10 +570,16 @@ async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &con
     }
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let count = storage.today_count();
+    let (left_clicks, right_clicks) = storage.today_click_counts();
     client
         .post(&cfg.api_url)
         .bearer_auth(&cfg.api_key)
-        .json(&serde_json::json!({ "date": today, "count": count }))
+        .json(&serde_json::json!({
+            "date": today,
+            "count": count,
+            "left_clicks": left_clicks,
+            "right_clicks": right_clicks
+        }))
         .send()
         .await
         .ok();
@@ -625,6 +638,9 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                                 }
                                 WsEvent::TypingStop => {
                                     serde_json::json!({ "type": "typing_stop" })
+                                }
+                                WsEvent::Click { button } => {
+                                    serde_json::json!({ "type": "click", "button": button })
                                 }
                             };
                             if write
@@ -687,9 +703,12 @@ mod tests {
         let mock = server
             .mock("POST", "/")
             .match_header("authorization", "Bearer test-key")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 3u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "date": today,
+                "count": 3u64,
+                "left_clicks": 0u64,
+                "right_clicks": 0u64
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
@@ -752,15 +771,49 @@ mod tests {
 
         let mock = server
             .mock("POST", "/")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 0u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "date": today,
+                "count": 0u64,
+                "left_clicks": 0u64,
+                "right_clicks": 0u64
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
             .await;
 
         let (_dir, storage) = temp_storage();
+        let client = reqwest::Client::new();
+        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_includes_click_counts_in_payload() {
+        let mut server = mockito::Server::new_async().await;
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "date": today,
+                "count": 1u64,
+                "left_clicks": 3u64,
+                "right_clicks": 1u64
+            })))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        storage.increment_today();
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Finder", 0);
+        storage.increment_today_app_click("Finder", 1);
+
         let client = reqwest::Client::new();
         do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
 

@@ -138,6 +138,23 @@ impl Storage {
         *data.counts.get(&today).unwrap_or(&0)
     }
 
+    /// Returns (left_clicks, right_clicks) totals for today across all apps.
+    pub fn today_click_counts(&self) -> (u64, u64) {
+        let today = today_key();
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let left = data
+            .app_left_click_counts
+            .get(&today)
+            .map(|m| m.values().sum())
+            .unwrap_or(0);
+        let right = data
+            .app_right_click_counts
+            .get(&today)
+            .map(|m| m.values().sum())
+            .unwrap_or(0);
+        (left, right)
+    }
+
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
         let mut entries: Vec<_> = data.counts.iter().collect();
