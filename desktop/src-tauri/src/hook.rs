@@ -10,6 +10,9 @@ pub enum KeyEvent {
         app: String,
         button: u8,
     },
+    /// Cmd+Q pressed while KeliKeli is the active app — the raw event has
+    /// already been swallowed by the tap; the receiver decides whether to quit.
+    CmdQ,
 }
 
 pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
@@ -72,6 +75,11 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             fn CFRunLoopRun();
             fn CFRelease(cf: *const c_void);
             static kCFRunLoopCommonModes: CFRunLoopMode;
+            /// Returns the event flags (modifier keys) for a CGEvent.
+            fn CGEventGetFlags(event: CGEventRef) -> u64;
+            /// Returns an integer-valued field from a CGEvent.
+            /// Field 9 = kCGKeyboardEventKeycode.
+            fn CGEventGetIntegerValueField(event: CGEventRef, field: i32) -> i64;
         }
 
         static TAP_PORT: std::sync::atomic::AtomicPtr<c_void> =
@@ -119,6 +127,29 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 return event;
             }
             if event_type == 10 {
+                // kCGEventFlagMaskCommand = 0x00100000, kVK_ANSI_Q = 12
+                // Intercept Cmd+Q only when KeliKeli itself is the active app
+                // so we never accidentally swallow Cmd+Q from other apps.
+                let flags = CGEventGetFlags(event);
+                let keycode = CGEventGetIntegerValueField(event, 9); // kCGKeyboardEventKeycode
+                if (flags & 0x00100000) != 0 && keycode == 12 {
+                    use objc::runtime::{Class, Object};
+                    use objc::{msg_send, sel, sel_impl};
+                    let ns_app_cls = Class::get("NSApplication");
+                    let is_active = ns_app_cls.map_or(false, |cls| {
+                        let ns_app: *mut Object = msg_send![cls, sharedApplication];
+                        let active: bool = msg_send![ns_app, isActive];
+                        active
+                    });
+                    if is_active {
+                        if let Some(tx) = SENDER.get() {
+                            let _ = tx.send(KeyEvent::CmdQ);
+                        }
+                        // Return null to swallow the event — our handler will
+                        // decide whether to quit or cancel.
+                        return std::ptr::null_mut();
+                    }
+                }
                 if let Some(tx) = SENDER.get() {
                     let app = frontmost_app_name();
                     let _ = tx.send(KeyEvent::KeyPress { app });

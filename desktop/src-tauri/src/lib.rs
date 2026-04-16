@@ -613,6 +613,20 @@ async fn key_loop(
                             last_flush = Instant::now();
                         }
                     }
+                    #[cfg(target_os = "macos")]
+                    Some(KeyEvent::CmdQ) => {
+                        // Cmd+Q was swallowed by the event tap; ask the user.
+                        let app_h = app.clone();
+                        let storage_h = storage.clone();
+                        let _ = app.run_on_main_thread(move || {
+                            if macos_confirm_quit() {
+                                storage_h.save();
+                                app_h.exit(0);
+                            }
+                        });
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    Some(KeyEvent::CmdQ) => {}
                     None => break,
                 }
             }
