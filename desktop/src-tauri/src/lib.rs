@@ -161,7 +161,10 @@ async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
+async fn install_update(
+    app: AppHandle,
+    storage: tauri::State<'_, storage::Storage>,
+) -> Result<(), String> {
     use tauri_plugin_updater::UpdaterExt;
     let updater = app
         .updater()
@@ -175,6 +178,8 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
         .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|_| "Download failed, please try again later".to_string())?;
+    storage.save();
+    SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
     app.restart();
 }
 
@@ -739,6 +744,13 @@ async fn startup_update_check(app: AppHandle, auto_update: bool) {
     let latest = update.version.clone();
     if auto_update {
         if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+            // Flush activity data before the process is replaced, and tell the
+            // ExitRequested handler to skip the quit-confirmation dialog — the
+            // user already opted into silent auto-updates.
+            if let Some(storage) = app.try_state::<storage::Storage>() {
+                storage.save();
+            }
+            SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
             app.restart();
         }
     } else {
@@ -751,38 +763,47 @@ async fn startup_update_check(app: AppHandle, auto_update: bool) {
         )
         .ok();
         #[cfg(target_os = "macos")]
-        show_update_notification(&app, &latest);
+        show_update_prompt(&app, &latest);
     }
 }
 
-/// Show a macOS system notification telling the user a new version is ready.
-/// Clicking the notification opens the Settings window.
+/// Show a native NSAlert telling the user a new version is available.
+/// Offers "Open Settings" (goes straight to the About tab) and "Later".
+/// Uses NSAlert rather than the deprecated NSUserNotification API so the
+/// prompt is always visible regardless of the system notification settings.
 #[cfg(target_os = "macos")]
-fn show_update_notification(_app: &AppHandle, version: &str) {
-    use objc::runtime::{Class, Object};
+fn show_update_prompt(app: &AppHandle, version: &str) {
+    use objc::runtime::{Class, Object, YES};
     use objc::{msg_send, sel, sel_impl};
-    unsafe {
-        let note_cls = match Class::get("NSUserNotification") {
-            Some(c) => c,
-            None => return,
-        };
-        let note: *mut Object = msg_send![note_cls, new];
-        let title = format!("KeliKeli {} is available", version);
-        let _: () = msg_send![note, setTitle: ns_string(&title)];
-        let _: () = msg_send![note, setInformativeText: ns_string(
-            "Open Settings → About to install the update."
-        )];
-        // "Open" action button — clicking it sends a notification action event
-        let _: () = msg_send![note, setHasActionButton: true];
-        let _: () = msg_send![note, setActionButtonTitle: ns_string("Open")];
+    let app_handle = app.clone();
+    let version_str = version.to_string();
+    // Run on the main thread — NSAlert must be shown from the main thread.
+    let _ = app.run_on_main_thread(move || unsafe {
+        let app_cls = Class::get("NSApplication").expect("NSApplication class");
+        let ns_app: *mut Object = msg_send![app_cls, sharedApplication];
+        let _: () = msg_send![ns_app, activateIgnoringOtherApps: YES];
 
-        let center_cls = match Class::get("NSUserNotificationCenter") {
-            Some(c) => c,
-            None => return,
-        };
-        let center: *mut Object = msg_send![center_cls, defaultUserNotificationCenter];
-        let _: () = msg_send![center, deliverNotification: note];
-    }
+        let alert_cls = Class::get("NSAlert").expect("NSAlert class");
+        let alert: *mut Object = msg_send![alert_cls, new];
+        let title = format!("KeliKeli {} is available", version_str);
+        let _: () = msg_send![alert, setMessageText: ns_string(&title)];
+        let _: () = msg_send![alert, setInformativeText: ns_string(
+            "A new version is ready to install.\nOpen Settings \u{2192} About to update now."
+        )];
+        let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Open Settings")];
+        let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Later")];
+
+        let app_icon: *mut Object = msg_send![ns_app, applicationIconImage];
+        if !app_icon.is_null() {
+            let _: () = msg_send![alert, setIcon: app_icon];
+        }
+
+        // NSAlertFirstButtonReturn = 1000  →  user clicked "Open Settings"
+        let response: i64 = msg_send![alert, runModal];
+        if response == 1000 {
+            open_settings_window(&app_handle);
+        }
+    });
 }
 
 async fn key_loop(
