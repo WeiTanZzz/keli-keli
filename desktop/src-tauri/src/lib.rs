@@ -144,7 +144,10 @@ async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
+async fn install_update(
+    app: AppHandle,
+    storage: tauri::State<'_, storage::Storage>,
+) -> Result<(), String> {
     use tauri_plugin_updater::UpdaterExt;
     let updater = app
         .updater()
@@ -158,6 +161,8 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
         .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|_| "Download failed, please try again later".to_string())?;
+    storage.save();
+    SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
     app.restart();
 }
 
