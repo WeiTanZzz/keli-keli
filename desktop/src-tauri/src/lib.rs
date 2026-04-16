@@ -59,7 +59,7 @@ struct UpdateStatus {
 }
 
 enum WsEvent {
-    Keystroke(u64),
+    Keystroke { app: String },
     Click { app: String, button: u8 },
     TypingStart,
     TypingStop,
@@ -542,7 +542,7 @@ async fn key_loop(
                             }
                         }
                         if let Some(tx) = &ws_tx {
-                            tx.send(WsEvent::Keystroke(count)).ok();
+                            tx.send(WsEvent::Keystroke { app: app_name.clone() }).ok();
                         }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
@@ -659,8 +659,8 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                     match event {
                         Some(event) => {
                             let payload = match event {
-                                WsEvent::Keystroke(count) => {
-                                    serde_json::json!({ "type": "keystroke", "count": count })
+                                WsEvent::Keystroke { app } => {
+                                    serde_json::json!({ "type": "keystroke", "app": app })
                                 }
                                 WsEvent::Click { app, button } => {
                                     let click_type =
@@ -842,7 +842,7 @@ mod tests {
             .unwrap();
         let mut ws = accept_async(stream).await.unwrap();
 
-        tx.send(WsEvent::Keystroke(42)).unwrap();
+        tx.send(WsEvent::Keystroke { app: "Xcode".into() }).unwrap();
 
         let msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
             .await
@@ -852,7 +852,7 @@ mod tests {
 
         let val = parse_ws_msg(&msg);
         assert_eq!(val["type"], "keystroke");
-        assert_eq!(val["count"], 42);
+        assert_eq!(val["app"], "Xcode");
     }
 
     #[tokio::test]
@@ -903,13 +903,13 @@ mod tests {
         let mut ws1 = accept_async(s1).await.unwrap();
 
         // Send and receive event 1
-        tx.send(WsEvent::Keystroke(1)).unwrap();
+        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
         let msg1 = tokio::time::timeout(Duration::from_secs(2), ws1.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg1)["count"], 1);
+        assert_eq!(parse_ws_msg(&msg1)["type"], "keystroke");
 
         // Drop the server side. ws_loop's select! is also polling read.next(),
         // so it detects the TCP FIN immediately — no sleep needed.
@@ -924,22 +924,22 @@ mod tests {
             .unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
-        tx.send(WsEvent::Keystroke(2)).unwrap();
-        tx.send(WsEvent::Keystroke(3)).unwrap();
+        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
+        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
 
         let msg2 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg2)["count"], 2);
+        assert_eq!(parse_ws_msg(&msg2)["type"], "keystroke");
 
         let msg3 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg3)["count"], 3);
+        assert_eq!(parse_ws_msg(&msg3)["type"], "keystroke");
     }
 
     #[tokio::test]
