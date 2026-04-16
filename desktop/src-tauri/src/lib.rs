@@ -89,6 +89,23 @@ fn save_config(new_cfg: config::Config, state: tauri::State<Arc<Mutex<config::Co
     *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg;
 }
 
+#[derive(serde::Serialize)]
+struct AllTimeCounts {
+    keystrokes: u64,
+    left_clicks: u64,
+    right_clicks: u64,
+}
+
+#[tauri::command]
+fn get_all_time_counts(storage: tauri::State<storage::Storage>) -> AllTimeCounts {
+    let (keystrokes, left_clicks, right_clicks) = storage.all_time_counts();
+    AllTimeCounts {
+        keystrokes,
+        left_clicks,
+        right_clicks,
+    }
+}
+
 #[tauri::command]
 fn get_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<DayStat> {
     storage
@@ -490,6 +507,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
+            get_all_time_counts,
             get_stats,
             get_app_stats,
             get_app_click_stats,

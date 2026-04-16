@@ -30,6 +30,12 @@ export interface AppClickStat {
     right_clicks: number
 }
 
+export interface AllTimeCounts {
+    keystrokes: number
+    left_clicks: number
+    right_clicks: number
+}
+
 export interface UpdateInfo {
     current: string
     latest: string | null
@@ -46,6 +52,9 @@ export const api = {
 
     setAutostart: (enabled: boolean): Promise<void> =>
         invoke("set_autostart", { enabled }),
+
+    getAllTimeCounts: (): Promise<AllTimeCounts> =>
+        invoke<AllTimeCounts>("get_all_time_counts"),
 
     getStats: (days: number): Promise<DayStat[]> =>
         invoke<DayStat[]>("get_stats", { days }),
