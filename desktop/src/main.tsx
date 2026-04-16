@@ -9,6 +9,10 @@ if (!import.meta.env.DEV) {
     document.addEventListener("contextmenu", (e) => e.preventDefault())
 }
 
+// Prevent drag-to-select text in all windows
+document.addEventListener("selectstart", (e) => e.preventDefault())
+document.addEventListener("dragstart", (e) => e.preventDefault())
+
 const label = getCurrentWindow().label
 if (label === "main") document.body.classList.add("indicator")
 
