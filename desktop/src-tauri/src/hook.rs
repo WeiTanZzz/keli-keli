@@ -136,7 +136,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     use objc::runtime::{Class, Object};
                     use objc::{msg_send, sel, sel_impl};
                     let ns_app_cls = Class::get("NSApplication");
-                    let is_active = ns_app_cls.map_or(false, |cls| {
+                    let is_active = ns_app_cls.is_some_and(|cls| {
                         let ns_app: *mut Object = msg_send![cls, sharedApplication];
                         let active: bool = msg_send![ns_app, isActive];
                         active
