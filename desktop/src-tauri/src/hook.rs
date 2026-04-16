@@ -77,6 +77,104 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         static TAP_PORT: std::sync::atomic::AtomicPtr<c_void> =
             std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
+        /// Return a canonical display name for a bundle identifier.
+        /// Falls back to `None` when the bundle id is not in the table so
+        /// the caller can use the OS-provided `localizedName` instead.
+        fn canonical_name(bundle_id: &str) -> Option<&'static str> {
+            // Strip optional ".debug" / "-dev" suffix variants some apps append
+            let id = bundle_id.trim_end_matches(".debug");
+            match id {
+                // Microsoft
+                "com.microsoft.VSCode" | "com.microsoft.VSCodeInsiders" => {
+                    Some("Visual Studio Code")
+                }
+                "com.microsoft.edgemac" => Some("Microsoft Edge"),
+                "com.microsoft.teams2" | "com.microsoft.teams" => {
+                    Some("Microsoft Teams")
+                }
+                "com.microsoft.Word" => Some("Microsoft Word"),
+                "com.microsoft.Excel" => Some("Microsoft Excel"),
+                "com.microsoft.Powerpoint" => Some("Microsoft PowerPoint"),
+                "com.microsoft.Outlook" => Some("Microsoft Outlook"),
+                "com.microsoft.onenote.mac" => Some("Microsoft OneNote"),
+                // JetBrains
+                "com.jetbrains.intellij" | "com.jetbrains.intellij.ce" => {
+                    Some("IntelliJ IDEA")
+                }
+                "com.jetbrains.pycharm" | "com.jetbrains.pycharm.ce" => {
+                    Some("PyCharm")
+                }
+                "com.jetbrains.goland" => Some("GoLand"),
+                "com.jetbrains.CLion" => Some("CLion"),
+                "com.jetbrains.webstorm" => Some("WebStorm"),
+                "com.jetbrains.datagrip" => Some("DataGrip"),
+                "com.jetbrains.rider" => Some("Rider"),
+                "com.jetbrains.rubymine" => Some("RubyMine"),
+                "com.jetbrains.fleet" => Some("Fleet"),
+                "com.jetbrains.PhpStorm" => Some("PhpStorm"),
+                "com.jetbrains.RustRover" => Some("RustRover"),
+                // Editors / IDEs
+                "com.sublimetext.4" | "com.sublimetext.3" | "com.sublimetext.2" => {
+                    Some("Sublime Text")
+                }
+                "io.cursor.Cursor" | "com.todesktop.230313mzl4w4u92" => Some("Cursor"),
+                "com.neovide.neovide" => Some("Neovide"),
+                "dev.zed.Zed" | "dev.zed.Zed-Preview" => Some("Zed"),
+                "com.apple.dt.Xcode" => Some("Xcode"),
+                // Terminals
+                "com.googlecode.iterm2" => Some("iTerm2"),
+                "net.kovidgoyal.kitty" => Some("kitty"),
+                "com.github.wez.wezterm" => Some("WezTerm"),
+                "dev.alacritty.Alacritty" => Some("Alacritty"),
+                // Browsers
+                "com.google.Chrome" => Some("Google Chrome"),
+                "com.google.Chrome.canary" => Some("Google Chrome Canary"),
+                "org.mozilla.firefox" => Some("Firefox"),
+                "com.brave.Browser" => Some("Brave Browser"),
+                "com.operasoftware.Opera" => Some("Opera"),
+                "com.vivaldi.Vivaldi" => Some("Vivaldi"),
+                "com.apple.Safari" => Some("Safari"),
+                "company.thebrowser.Browser" => Some("Arc"),
+                // Communication
+                "com.tencent.xinWeChat" => Some("WeChat"),
+                "com.tencent.QQMacOS" => Some("QQ"),
+                "com.bytedance.feishu" => Some("Feishu"),
+                "com.dingtalk.macos.mainApp" => Some("DingTalk"),
+                "com.hnc.Discord" => Some("Discord"),
+                "com.tinyspeck.slackmacgap" => Some("Slack"),
+                "com.facebook.archon" | "com.facebook.Messenger" => Some("Messenger"),
+                "com.telegram.desktop" | "ru.keepcoder.Telegram" => Some("Telegram"),
+                // Productivity
+                "com.notion.id" => Some("Notion"),
+                "md.obsidian" | "com.obsidian.md" => Some("Obsidian"),
+                "com.figma.Desktop" => Some("Figma"),
+                "com.linear.linear" => Some("Linear"),
+                "com.github.GitHubDesktop" => Some("GitHub Desktop"),
+                "com.sourcetreeapp.SourceTree" => Some("Sourcetree"),
+                "org.gitkraken.gitkraken" => Some("GitKraken"),
+                "com.postmanlabs.mac" => Some("Postman"),
+                "io.insomnia.desktop" => Some("Insomnia"),
+                "com.docker.docker" => Some("Docker Desktop"),
+                _ => None,
+            }
+        }
+
+        unsafe fn ns_string_to_rust(obj: *mut objc::runtime::Object) -> Option<String> {
+            use objc::{msg_send, sel, sel_impl};
+            if obj.is_null() {
+                return None;
+            }
+            let utf8: *const std::os::raw::c_char = msg_send![obj, UTF8String];
+            if utf8.is_null() {
+                return None;
+            }
+            Some(
+                std::ffi::CStr::from_ptr(utf8)
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        }
+
         unsafe fn frontmost_app_name() -> String {
             use objc::runtime::{Class, Object};
             use objc::{msg_send, sel, sel_impl};
@@ -92,17 +190,18 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             if app.is_null() {
                 return "Unknown".to_string();
             }
-            let name: *mut Object = msg_send![app, localizedName];
-            if name.is_null() {
-                return "Unknown".to_string();
+
+            // Try bundle identifier first — it is stable across renames/locales.
+            let bundle_id_obj: *mut Object = msg_send![app, bundleIdentifier];
+            if let Some(bundle_id) = ns_string_to_rust(bundle_id_obj) {
+                if let Some(name) = canonical_name(&bundle_id) {
+                    return name.to_string();
+                }
             }
-            let utf8: *const std::os::raw::c_char = msg_send![name, UTF8String];
-            if utf8.is_null() {
-                return "Unknown".to_string();
-            }
-            std::ffi::CStr::from_ptr(utf8)
-                .to_string_lossy()
-                .into_owned()
+
+            // Fall back to the OS-provided localised name.
+            let name_obj: *mut Object = msg_send![app, localizedName];
+            ns_string_to_rust(name_obj).unwrap_or_else(|| "Unknown".to_string())
         }
 
         unsafe extern "C" fn tap_callback(
