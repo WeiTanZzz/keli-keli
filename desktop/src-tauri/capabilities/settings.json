@@ -8,6 +8,9 @@
         "core:event:default",
         "core:event:allow-listen",
         "core:event:allow-unlisten",
+        "core:window:allow-start-dragging",
+        "core:window:allow-close",
+        "core:window:allow-minimize",
         "updater:default"
     ]
 }

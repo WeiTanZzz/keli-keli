@@ -460,17 +460,49 @@ fn open_settings_window(app: &AppHandle) {
         win.show().ok();
         win.set_focus().ok();
     } else {
-        tauri::WebviewWindowBuilder::new(
+        if let Ok(win) = tauri::WebviewWindowBuilder::new(
             app,
             "settings",
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("KeliKeli Settings")
-        .inner_size(660.0, 520.0)
+        .inner_size(660.0, 556.0)
         .resizable(false)
+        .decorations(false)
+        .transparent(true)
         .center()
         .build()
-        .ok();
+        {
+            #[cfg(target_os = "macos")]
+            setup_settings_window_rounded(&win);
+        }
+    }
+}
+
+/// Make the settings window background transparent and give it a 12-pt
+/// corner radius using the NSWindow contentView's CALayer.
+/// Does NOT change window level or collection behavior (unlike the indicator).
+#[cfg(target_os = "macos")]
+fn setup_settings_window_rounded(win: &tauri::WebviewWindow) {
+    use objc::runtime::{Class, Object, NO, YES};
+    use objc::{msg_send, sel, sel_impl};
+    if let Ok(ptr) = win.ns_window() {
+        unsafe {
+            let ns_window = ptr as *mut Object;
+
+            // Make the NSWindow itself transparent.
+            let clear: *mut Object = msg_send![Class::get("NSColor").unwrap(), clearColor];
+            let _: () = msg_send![ns_window, setOpaque: NO];
+            let _: () = msg_send![ns_window, setBackgroundColor: clear];
+            let _: () = msg_send![ns_window, setHasShadow: YES];
+
+            // Apply corner radius to the contentView layer.
+            let content: *mut Object = msg_send![ns_window, contentView];
+            let _: () = msg_send![content, setWantsLayer: YES];
+            let layer: *mut Object = msg_send![content, layer];
+            let _: () = msg_send![layer, setCornerRadius: 12.0f64];
+            let _: () = msg_send![layer, setMasksToBounds: YES];
+        }
     }
 }
 
