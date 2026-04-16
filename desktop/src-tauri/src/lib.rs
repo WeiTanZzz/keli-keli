@@ -60,6 +60,7 @@ struct UpdateStatus {
 
 enum WsEvent {
     Keystroke(u64),
+    Click { app: String, button: u8 },
     TypingStart,
     TypingStop,
 }
@@ -510,6 +511,13 @@ async fn key_loop(
                             },
                         )
                         .ok();
+                        if let Some(tx) = &ws_tx {
+                            tx.send(WsEvent::Click {
+                                app: app_name.clone(),
+                                button,
+                            })
+                            .ok();
+                        }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
                             storage.save();
@@ -561,12 +569,28 @@ async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &con
     if scheme != "http" && scheme != "https" {
         return;
     }
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let count = storage.today_count();
+    let days = storage.get_daily_stats(cfg.sync_days);
+    let from = days.first().map(|(d, _, _, _)| d.as_str()).unwrap_or("");
+    let to = days.last().map(|(d, _, _, _)| d.as_str()).unwrap_or("");
+    let day_entries: Vec<_> = days
+        .iter()
+        .map(|(date, keystrokes, left_clicks, right_clicks)| {
+            serde_json::json!({
+                "date": date,
+                "keystrokes": keystrokes,
+                "left_clicks": left_clicks,
+                "right_clicks": right_clicks,
+            })
+        })
+        .collect();
     client
         .post(&cfg.api_url)
         .bearer_auth(&cfg.api_key)
-        .json(&serde_json::json!({ "date": today, "count": count }))
+        .json(&serde_json::json!({
+            "from": from,
+            "to": to,
+            "days": day_entries,
+        }))
         .send()
         .await
         .ok();
@@ -620,6 +644,11 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                                 WsEvent::Keystroke(count) => {
                                     serde_json::json!({ "type": "keystroke", "count": count })
                                 }
+                                WsEvent::Click { app, button } => {
+                                    let click_type =
+                                        if button == 0 { "left_click" } else { "right_click" };
+                                    serde_json::json!({ "type": click_type, "app": app })
+                                }
                                 WsEvent::TypingStart => {
                                     serde_json::json!({ "type": "typing_start" })
                                 }
@@ -670,6 +699,7 @@ mod tests {
             api_url: url.to_string(),
             api_key: "test-key".to_string(),
             interval_secs: 60,
+            sync_days: 7,
         }
     }
 
@@ -687,9 +717,16 @@ mod tests {
         let mock = server
             .mock("POST", "/")
             .match_header("authorization", "Bearer test-key")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 3u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "from": today,
+                "to": today,
+                "days": [{
+                    "date": today,
+                    "keystrokes": 3u64,
+                    "left_clicks": 2u64,
+                    "right_clicks": 1u64,
+                }],
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
@@ -699,6 +736,9 @@ mod tests {
         for _ in 0..3 {
             storage.increment_today();
         }
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 1);
 
         let client = reqwest::Client::new();
         do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
@@ -740,27 +780,54 @@ mod tests {
                 api_url: bad_url.to_string(),
                 api_key: "k".to_string(),
                 interval_secs: 60,
+                sync_days: 7,
             };
             do_sync(&client, &storage, &cfg).await; // must return without error
         }
     }
 
     #[tokio::test]
-    async fn sync_sends_zero_count_when_no_keystrokes() {
+    async fn sync_sends_empty_days_when_no_data() {
         let mut server = mockito::Server::new_async().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
         let mock = server
             .mock("POST", "/")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 0u64 }),
-            ))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "from": "",
+                "to": "",
+                "days": [],
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
             .await;
 
         let (_dir, storage) = temp_storage();
+        let client = reqwest::Client::new();
+        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_includes_multiple_days_in_range() {
+        let mut server = mockito::Server::new_async().await;
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+        // Just verify the payload has "days" as an array with today's entry
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "from": today,
+                "to": today,
+            })))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        storage.increment_today();
         let client = reqwest::Client::new();
         do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
 
@@ -881,5 +948,41 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(parse_ws_msg(&msg3)["count"], 3);
+    }
+
+    #[tokio::test]
+    async fn ws_delivers_left_and_right_click_events() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut ws = accept_async(stream).await.unwrap();
+
+        tx.send(WsEvent::Click { app: "Finder".into(), button: 0 }).unwrap();
+        tx.send(WsEvent::Click { app: "Safari".into(), button: 1 }).unwrap();
+
+        let left_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let left = parse_ws_msg(&left_msg);
+        assert_eq!(left["type"], "left_click");
+        assert_eq!(left["app"], "Finder");
+
+        let right_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let right = parse_ws_msg(&right_msg);
+        assert_eq!(right["type"], "right_click");
+        assert_eq!(right["app"], "Safari");
     }
 }

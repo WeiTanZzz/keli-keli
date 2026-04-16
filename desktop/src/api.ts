@@ -7,6 +7,7 @@ export interface Config {
         api_url: string
         api_key: string
         interval_secs: number
+        sync_days: number
     }
     websocket: { enabled: boolean; ws_url: string; typing_idle_ms: number }
 }
