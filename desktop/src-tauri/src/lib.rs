@@ -621,6 +621,8 @@ async fn key_loop(
                         let _ = app.run_on_main_thread(move || {
                             if macos_confirm_quit() {
                                 storage_h.save();
+                                // Skip the ExitRequested dialog — user already confirmed.
+                                SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
                                 app_h.exit(0);
                             }
                         });
