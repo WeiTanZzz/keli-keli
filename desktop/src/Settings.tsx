@@ -64,6 +64,21 @@ const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "about", label: "About", icon: Info },
 ]
 
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns a YYYY-MM-DD string in the *local* timezone.
+ * Using toISOString() would give the UTC date, which can differ from the local
+ * date by one day around midnight for users outside UTC.  Rust stores dates
+ * with chrono::Local, so the frontend must match.
+ */
+function localDateStr(d: Date = new Date()): string {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+}
+
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
 function computeAppTotals(
@@ -84,7 +99,7 @@ function computeStreak(stats: DayStat[]): number {
     let streak = 0
     const d = new Date()
     while (true) {
-        const key = d.toISOString().slice(0, 10)
+        const key = localDateStr(d)
         if ((dateMap.get(key) ?? 0) > 0) {
             streak++
             d.setDate(d.getDate() - 1)
@@ -101,7 +116,7 @@ function last7Days(): { date: string; label: string; isToday: boolean }[] {
     return Array.from({ length: 7 }, (_, i) => {
         const d = new Date()
         d.setDate(d.getDate() - i)
-        const date = d.toISOString().slice(0, 10)
+        const date = localDateStr(d)
         return {
             date,
             label: i === 0 ? "Today" : DOW[d.getDay()],
@@ -257,7 +272,7 @@ function DailyBarChart({
     onSelectDate: (date: string | null) => void
 }) {
     const recent = useMemo(() => stats.slice(-30), [stats])
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateStr()
     const displayDate = selectedDate ?? today
 
     // Daily click totals aggregated from per-app data
@@ -513,10 +528,8 @@ function AppBreakdownChart({
     const [period, setPeriod] = useState<AppPeriod>("day")
 
     const filterByPeriod = useMemo(() => {
-        const today = new Date().toISOString().slice(0, 10)
-        const weekAgo = new Date(Date.now() - 7 * 86400000)
-            .toISOString()
-            .slice(0, 10)
+        const today = localDateStr()
+        const weekAgo = localDateStr(new Date(Date.now() - 7 * 86400000))
         return {
             keys: (stats: AppStat[]) => {
                 if (period === "day")
@@ -785,8 +798,8 @@ function StatisticsSection({
     clickStats: AppClickStat[]
 }) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
-    const today = new Date().toISOString().slice(0, 10)
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const today = localDateStr()
+    const yesterday = localDateStr(new Date(Date.now() - 86400000))
 
     // Daily click totals (left + right) per date
     const dailyClicks = useMemo(() => {
@@ -1263,7 +1276,7 @@ export default function Settings() {
     const [active, setActive] = useState<NavId>("statistics")
 
     useEffect(() => {
-        const today = new Date().toISOString().slice(0, 10)
+        const today = localDateStr()
         const unlisten = listen<{ count: number; app: string }>(
             "keystroke",
             (e) => {
