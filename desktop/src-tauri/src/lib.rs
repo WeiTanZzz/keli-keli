@@ -24,6 +24,22 @@ struct ToggleItem(Mutex<MenuItem<Wry>>);
 /// knows to skip the confirmation dialog (user already chose to quit).
 static SKIP_QUIT_DIALOG: AtomicBool = AtomicBool::new(false);
 
+// NSAlertFirstButtonReturn — the return value of NSAlert.runModal() when the
+// first (leftmost) button is clicked.
+#[cfg(target_os = "macos")]
+const NS_ALERT_FIRST_BUTTON: i64 = 1000;
+
+// NSWindowCollectionBehavior flags used for the floating indicator window.
+// CanJoinAllSpaces(1) keeps it visible on every Space.
+// Stationary(16) prevents Mission Control from moving it.
+// FullScreenAuxiliary(256) lets it overlay full-screen apps.
+#[cfg(target_os = "macos")]
+const NS_WINDOW_COLLECTION_BEHAVIOR: usize = 1 | 16 | 256;
+
+// Window level high enough to appear above full-screen apps on all Spaces.
+#[cfg(target_os = "macos")]
+const INDICATOR_WINDOW_LEVEL: i64 = 10000;
+
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
     count: u64,
@@ -444,9 +460,8 @@ fn macos_confirm_quit() -> bool {
             let _: () = msg_send![alert, setIcon: app_icon];
         }
 
-        // NSAlertFirstButtonReturn = 1000  →  user clicked "Quit"
         let response: i64 = msg_send![alert, runModal];
-        response == 1000
+        response == NS_ALERT_FIRST_BUTTON
     }
 }
 
@@ -470,12 +485,11 @@ fn make_webview_transparent(win: &tauri::WebviewWindow) {
                 let _: () = msg_send![view, setOpaque: NO];
                 let _: () = msg_send![view, setBackgroundColor: clear];
             }
-            // Level 10000: high enough to appear above full-screen apps on all Spaces
-            let _: () = msg_send![ns_window, setLevel: 10000i64];
-            // Read existing behavior first, then OR in our flags to preserve Tauri's defaults
-            // CanJoinAllSpaces (1) | Stationary (16) | FullScreenAuxiliary (256)
+            let _: () = msg_send![ns_window, setLevel: INDICATOR_WINDOW_LEVEL];
+            // OR in our flags rather than replacing so we preserve Tauri's defaults.
             let existing: usize = msg_send![ns_window, collectionBehavior];
-            let _: () = msg_send![ns_window, setCollectionBehavior: existing | 1 | 16 | 256];
+            let _: () =
+                msg_send![ns_window, setCollectionBehavior: existing | NS_WINDOW_COLLECTION_BEHAVIOR];
         }
     }
 }
@@ -798,9 +812,8 @@ fn show_update_prompt(app: &AppHandle, version: &str) {
             let _: () = msg_send![alert, setIcon: app_icon];
         }
 
-        // NSAlertFirstButtonReturn = 1000  →  user clicked "Open Settings"
         let response: i64 = msg_send![alert, runModal];
-        if response == 1000 {
+        if response == NS_ALERT_FIRST_BUTTON {
             open_settings_window(&app_handle);
         }
     });

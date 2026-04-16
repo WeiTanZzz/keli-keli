@@ -53,9 +53,13 @@ impl Storage {
         }))
     }
 
+    fn lock_data(&self) -> std::sync::MutexGuard<'_, StatsData> {
+        self.0.data.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     pub fn increment_today(&self) -> u64 {
         let today = today_key();
-        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let mut data = self.lock_data();
         let count = data.counts.entry(today).or_insert(0);
         *count += 1;
         *count
@@ -63,7 +67,7 @@ impl Storage {
 
     pub fn increment_today_app(&self, app: &str) {
         let today = today_key();
-        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let mut data = self.lock_data();
         *data
             .app_counts
             .entry(today)
@@ -75,7 +79,7 @@ impl Storage {
     /// button: 0 = left, 1 = right, anything else is ignored
     pub fn increment_today_app_click(&self, app: &str, button: u8) {
         let today = today_key();
-        let mut data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let mut data = self.lock_data();
         let map = match button {
             0 => &mut data.app_left_click_counts,
             1 => &mut data.app_right_click_counts,
@@ -89,7 +93,7 @@ impl Storage {
 
     /// Returns (date, app, left_clicks, right_clicks) for the most recent `days` days.
     pub fn get_app_click_stats(&self, days: usize) -> Vec<(String, String, u64, u64)> {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         // Collect all (date, app) pairs that appear in either map
         let mut keys: HashSet<(String, String)> = HashSet::new();
         for (date, apps) in &data.app_left_click_counts {
@@ -134,13 +138,13 @@ impl Storage {
 
     pub fn today_count(&self) -> u64 {
         let today = today_key();
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         *data.counts.get(&today).unwrap_or(&0)
     }
 
     /// Returns (keystrokes, left_clicks, right_clicks) summed across all time.
     pub fn all_time_counts(&self) -> (u64, u64, u64) {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         let keystrokes = data.counts.values().sum();
         let left = data
             .app_left_click_counts
@@ -156,7 +160,7 @@ impl Storage {
     }
 
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         let mut entries: Vec<_> = data.counts.iter().collect();
         entries.sort_by(|a, b| b.0.cmp(a.0));
         entries.truncate(days);
@@ -166,7 +170,7 @@ impl Storage {
 
     /// Returns (date, app_name, count) for the most recent `days` days, sorted by date desc then count desc.
     pub fn get_app_stats(&self, days: usize) -> Vec<(String, String, u64)> {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         let mut dates: Vec<&String> = data.app_counts.keys().collect();
         dates.sort_by(|a, b| b.cmp(a));
         dates.truncate(days);
@@ -183,7 +187,7 @@ impl Storage {
     }
 
     pub fn save(&self) {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let data = self.lock_data();
         if let Ok(json) = serde_json::to_string_pretty(&*data) {
             let _ = fs::write(&self.0.path, json);
         }
