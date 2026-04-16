@@ -307,6 +307,13 @@ fn macos_confirm_quit() -> bool {
         let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Quit")];
         let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Cancel")];
 
+        // Set the app icon so the alert shows our icon instead of the
+        // generic macOS document/folder icon.
+        let app_icon: *mut Object = msg_send![ns_app, applicationIconImage];
+        if !app_icon.is_null() {
+            let _: () = msg_send![alert, setIcon: app_icon];
+        }
+
         // NSAlertFirstButtonReturn = 1000  →  user clicked "Quit"
         let response: i64 = msg_send![alert, runModal];
         response == 1000
@@ -548,7 +555,7 @@ fn open_settings_window(app: &AppHandle) {
 }
 
 fn build_tray_icon() -> TrayImage<'static> {
-    let bytes = include_bytes!("../icons/icon.png");
+    let bytes = include_bytes!("../icons/32x32.png");
     TrayImage::from_bytes(bytes).expect("failed to load tray icon")
 }
 
