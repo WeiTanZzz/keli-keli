@@ -583,7 +583,11 @@ async fn do_sync(
         return *prev;
     }
     let (ks, left, right) = storage.all_time_counts();
-    let now = SyncSnapshot { keystrokes: ks, left_clicks: left, right_clicks: right };
+    let now = SyncSnapshot {
+        keystrokes: ks,
+        left_clicks: left,
+        right_clicks: right,
+    };
     let synced_at = chrono::Local::now().to_rfc3339();
     client
         .post(&cfg.api_url)
@@ -613,11 +617,15 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
     let mut interval = tokio::time::interval(Duration::from_secs(cfg.interval_secs));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     interval.tick().await; // skip the first immediate tick
-    // Snapshot before the first real tick so the first delta reflects activity
-    // since the app started, not since the beginning of time.
+                           // Snapshot before the first real tick so the first delta reflects activity
+                           // since the app started, not since the beginning of time.
     let mut prev = {
         let (ks, left, right) = storage.all_time_counts();
-        SyncSnapshot { keystrokes: ks, left_clicks: left, right_clicks: right }
+        SyncSnapshot {
+            keystrokes: ks,
+            left_clicks: left,
+            right_clicks: right,
+        }
     };
     loop {
         interval.tick().await;
@@ -780,7 +788,11 @@ mod tests {
         }
 
         let client = reqwest::Client::new();
-        let prev = SyncSnapshot { keystrokes: 7, left_clicks: 0, right_clicks: 0 };
+        let prev = SyncSnapshot {
+            keystrokes: 7,
+            left_clicks: 0,
+            right_clicks: 0,
+        };
         do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
 
         mock.assert_async().await;
@@ -842,7 +854,10 @@ mod tests {
             .unwrap();
         let mut ws = accept_async(stream).await.unwrap();
 
-        tx.send(WsEvent::Keystroke { app: "Xcode".into() }).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Xcode".into(),
+        })
+        .unwrap();
 
         let msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
             .await
@@ -903,7 +918,10 @@ mod tests {
         let mut ws1 = accept_async(s1).await.unwrap();
 
         // Send and receive event 1
-        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
         let msg1 = tokio::time::timeout(Duration::from_secs(2), ws1.next())
             .await
             .unwrap()
@@ -924,8 +942,14 @@ mod tests {
             .unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
-        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
-        tx.send(WsEvent::Keystroke { app: "Terminal".into() }).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
 
         let msg2 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await
