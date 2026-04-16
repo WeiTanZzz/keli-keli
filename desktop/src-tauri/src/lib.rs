@@ -65,6 +65,12 @@ struct UpdateStatus {
     available: bool,
 }
 
+#[derive(serde::Serialize, Clone)]
+struct UpdateAvailablePayload {
+    current: String,
+    latest: String,
+}
+
 enum WsEvent {
     Keystroke { app: String },
     Click { app: String, button: u8 },
@@ -356,6 +362,7 @@ pub fn run() {
     let storage = storage::Storage::load();
     let idle_ms = cfg.websocket.typing_idle_ms;
     let flush_secs = cfg.flush_interval_secs;
+    let auto_update = cfg.auto_update;
 
     let ws_url = cfg
         .websocket
@@ -428,6 +435,7 @@ pub fn run() {
             }
 
             setup_tray(app.handle())?;
+            tauri::async_runtime::spawn(startup_update_check(app.handle().clone(), auto_update));
             let ws_tx = ws_url.map(|url| {
                 let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
                 tauri::async_runtime::spawn(ws_loop(rx, url));
@@ -590,6 +598,71 @@ fn setup_settings_window_rounded(win: &tauri::WebviewWindow) {
 fn build_tray_icon() -> TrayImage<'static> {
     let bytes = include_bytes!("../icons/32x32.png");
     TrayImage::from_bytes(bytes).expect("failed to load tray icon")
+}
+
+/// Check for updates at launch. If `auto_update` is true and an update
+/// is available, download and install it immediately (app will restart).
+/// Otherwise emit `"update_available"` so the UI can show a badge.
+async fn startup_update_check(app: AppHandle, auto_update: bool) {
+    use tauri_plugin_updater::UpdaterExt;
+    // Small delay so the UI has time to finish initialising.
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(_) => return,
+    };
+    let update = match updater.check().await {
+        Ok(Some(u)) => u,
+        _ => return,
+    };
+    let current = app.package_info().version.to_string();
+    let latest = update.version.clone();
+    if auto_update {
+        if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+            app.restart();
+        }
+    } else {
+        app.emit(
+            "update_available",
+            UpdateAvailablePayload {
+                current: current.clone(),
+                latest: latest.clone(),
+            },
+        )
+        .ok();
+        #[cfg(target_os = "macos")]
+        show_update_notification(&app, &latest);
+    }
+}
+
+/// Show a macOS system notification telling the user a new version is ready.
+/// Clicking the notification opens the Settings window.
+#[cfg(target_os = "macos")]
+fn show_update_notification(_app: &AppHandle, version: &str) {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+    unsafe {
+        let note_cls = match Class::get("NSUserNotification") {
+            Some(c) => c,
+            None => return,
+        };
+        let note: *mut Object = msg_send![note_cls, new];
+        let title = format!("KeliKeli {} is available", version);
+        let _: () = msg_send![note, setTitle: ns_string(&title)];
+        let _: () = msg_send![note, setInformativeText: ns_string(
+            "Open Settings → About to install the update."
+        )];
+        // "Open" action button — clicking it sends a notification action event
+        let _: () = msg_send![note, setHasActionButton: true];
+        let _: () = msg_send![note, setActionButtonTitle: ns_string("Open")];
+
+        let center_cls = match Class::get("NSUserNotificationCenter") {
+            Some(c) => c,
+            None => return,
+        };
+        let center: *mut Object = msg_send![center_cls, defaultUserNotificationCenter];
+        let _: () = msg_send![center, deliverNotification: note];
+    }
 }
 
 async fn key_loop(

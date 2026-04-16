@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 
 export interface Config {
     flush_interval_secs: number
+    auto_update: boolean
     sync: {
         enabled: boolean
         api_url: string

@@ -20,6 +20,9 @@ pub struct WebSocketConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub flush_interval_secs: u64,
+    /// Automatically install updates when one is found at launch.
+    #[serde(default)]
+    pub auto_update: bool,
     pub sync: SyncConfig,
     pub websocket: WebSocketConfig,
 }
@@ -28,6 +31,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             flush_interval_secs: 60,
+            auto_update: false,
             sync: SyncConfig {
                 enabled: false,
                 api_url: String::new(),

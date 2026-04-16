@@ -1096,10 +1096,14 @@ function WebSocketSection({
 
 function AboutSection({
     update,
+    cfg,
     onInstall,
+    onAutoUpdate,
 }: {
     update: UpdateState
+    cfg: Config
     onInstall: () => void
+    onAutoUpdate: (v: boolean) => void
 }) {
     return (
         <div className="flex flex-col gap-4">
@@ -1134,6 +1138,15 @@ function AboutSection({
                             {update.message}
                         </span>
                     )}
+                </FormRow>
+                <FormRow
+                    label="Auto-update"
+                    description="Automatically install updates at launch"
+                >
+                    <Switch
+                        checked={cfg.auto_update}
+                        onCheckedChange={onAutoUpdate}
+                    />
                 </FormRow>
             </Card>
         </div>
@@ -1297,9 +1310,22 @@ export default function Settings() {
                 }),
             )
 
+        // Listen for background update check result (emitted by Rust at startup)
+        const unlistenUpdate = listen<{ current: string; latest: string }>(
+            "update_available",
+            (e) => {
+                setUpdate({
+                    status: "available",
+                    current: e.payload.current,
+                    latest: e.payload.latest,
+                })
+            },
+        )
+
         return () => {
             unlisten.then((f) => f())
             unlistenClick.then((f) => f())
+            unlistenUpdate.then((f) => f())
         }
     }, [])
 
@@ -1316,6 +1342,9 @@ export default function Settings() {
         setAutostart(v)
         api.setAutostart(v)
     }
+
+    const handleAutoUpdate = (v: boolean) =>
+        setCfg((c) => (c ? { ...c, auto_update: v } : c))
 
     const handleSave = async () => {
         if (!cfg) return
@@ -1360,7 +1389,11 @@ export default function Settings() {
                                     )}
                                 >
                                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                                    {item.label}
+                                    <span className="flex-1">{item.label}</span>
+                                    {item.id === "about" &&
+                                        update.status === "available" && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                                        )}
                                 </button>
                             )
                         })}
@@ -1401,10 +1434,12 @@ export default function Settings() {
                         {active === "websocket" && cfg && (
                             <WebSocketSection cfg={cfg} onUpdate={setWs} />
                         )}
-                        {active === "about" && (
+                        {active === "about" && cfg && (
                             <AboutSection
                                 update={update}
+                                cfg={cfg}
                                 onInstall={handleInstall}
+                                onAutoUpdate={handleAutoUpdate}
                             />
                         )}
                     </div>
