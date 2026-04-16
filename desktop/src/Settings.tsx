@@ -9,6 +9,38 @@ import {
     type Config,
     type DayStat,
 } from "@/api"
+
+// Module-level cache so repeated renders don't re-fetch the same name.
+const displayNameCache = new Map<string, string | null>()
+
+/** Derive a reasonable fallback from a bundle id without an OS lookup. */
+function bundleFallback(id: string): string {
+    const parts = id.split(".")
+    if (parts.length > 1) {
+        const last = parts[parts.length - 1]
+        return last.charAt(0).toUpperCase() + last.slice(1)
+    }
+    return id
+}
+
+/** Returns the OS-resolved display name for a bundle id, falling back to
+ *  the last dot-segment while the async lookup is in flight. */
+function useAppDisplayName(id: string): string {
+    const cached = displayNameCache.get(id)
+    const [name, setName] = useState<string>(cached ?? bundleFallback(id))
+
+    useEffect(() => {
+        if (displayNameCache.has(id)) return
+        api.getAppDisplayName(id).then((n) => {
+            const resolved = n ?? null
+            displayNameCache.set(id, resolved)
+            if (resolved) setName(resolved)
+        })
+    }, [id])
+
+    return name
+}
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -590,70 +622,87 @@ function AppBreakdownChart({
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
-                    {merged.map(({ app, keys, left, right }) => {
-                        const clicks = left + right
-                        const total = keys + clicks
-                        return (
-                            <Tip
-                                key={app}
-                                content={
-                                    <span className="flex gap-2.5">
-                                        <span className="font-medium">
-                                            {app}
-                                        </span>
-                                        {keys > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
-                                                {keys.toLocaleString()} keys
-                                            </span>
-                                        )}
-                                        {left > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                                                {left.toLocaleString()} L
-                                            </span>
-                                        )}
-                                        {right > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
-                                                {right.toLocaleString()} R
-                                            </span>
-                                        )}
-                                    </span>
-                                }
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <AppIcon app={app} />
-                                    <span
-                                        className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
-                                        title={app}
-                                    >
-                                        {app}
-                                    </span>
-                                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
-                                        <div
-                                            className="h-full bg-indigo-400 transition-all duration-500"
-                                            style={{
-                                                width: `${(keys / max) * 100}%`,
-                                            }}
-                                        />
-                                        <div
-                                            className="h-full bg-rose-400 transition-all duration-500"
-                                            style={{
-                                                width: `${(clicks / max) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                                        {total.toLocaleString()}
-                                    </span>
-                                </div>
-                            </Tip>
-                        )
-                    })}
+                    {merged.map(({ app, keys, left, right }) => (
+                        <AppRow
+                            key={app}
+                            app={app}
+                            keys={keys}
+                            left={left}
+                            right={right}
+                            max={max}
+                        />
+                    ))}
                 </div>
             )}
         </div>
+    )
+}
+
+function AppRow({
+    app,
+    keys,
+    left,
+    right,
+    max,
+}: {
+    app: string
+    keys: number
+    left: number
+    right: number
+    max: number
+}) {
+    const displayName = useAppDisplayName(app)
+    const clicks = left + right
+    const total = keys + clicks
+    return (
+        <Tip
+            content={
+                <span className="flex gap-2.5">
+                    <span className="font-medium">{displayName}</span>
+                    {keys > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                            {keys.toLocaleString()} keys
+                        </span>
+                    )}
+                    {left > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                            {left.toLocaleString()} L
+                        </span>
+                    )}
+                    {right > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
+                            {right.toLocaleString()} R
+                        </span>
+                    )}
+                </span>
+            }
+        >
+            <div className="flex items-center gap-2.5">
+                <AppIcon app={app} />
+                <span
+                    className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                    title={displayName}
+                >
+                    {displayName}
+                </span>
+                <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                    <div
+                        className="h-full bg-indigo-400 transition-all duration-500"
+                        style={{ width: `${(keys / max) * 100}%` }}
+                    />
+                    <div
+                        className="h-full bg-rose-400 transition-all duration-500"
+                        style={{ width: `${(clicks / max) * 100}%` }}
+                    />
+                </div>
+                <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                    {total.toLocaleString()}
+                </span>
+            </div>
+        </Tip>
     )
 }
 

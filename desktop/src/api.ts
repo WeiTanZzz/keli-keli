@@ -62,4 +62,7 @@ export const api = {
 
     getAppIcon: (appName: string): Promise<string | null> =>
         invoke<string | null>("get_app_icon", { appName }),
+
+    getAppDisplayName: (appName: string): Promise<string | null> =>
+        invoke<string | null>("get_app_display_name", { appName }),
 }

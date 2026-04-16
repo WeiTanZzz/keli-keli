@@ -85,6 +85,22 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         static TAP_PORT: std::sync::atomic::AtomicPtr<c_void> =
             std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
+        unsafe fn ns_string_to_rust(obj: *mut objc::runtime::Object) -> Option<String> {
+            use objc::{msg_send, sel, sel_impl};
+            if obj.is_null() {
+                return None;
+            }
+            let utf8: *const std::os::raw::c_char = msg_send![obj, UTF8String];
+            if utf8.is_null() {
+                return None;
+            }
+            Some(
+                std::ffi::CStr::from_ptr(utf8)
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        }
+
         unsafe fn frontmost_app_name() -> String {
             use objc::runtime::{Class, Object};
             use objc::{msg_send, sel, sel_impl};
@@ -100,17 +116,17 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             if app.is_null() {
                 return "Unknown".to_string();
             }
-            let name: *mut Object = msg_send![app, localizedName];
-            if name.is_null() {
-                return "Unknown".to_string();
+            // Use bundleIdentifier as the primary key — stable, unique,
+            // and locale-independent. Falls back to localizedName for
+            // apps that ship without a bundle id (e.g. scripts, CLI wrappers).
+            let bundle_id_obj: *mut Object = msg_send![app, bundleIdentifier];
+            if let Some(id) = ns_string_to_rust(bundle_id_obj) {
+                if !id.is_empty() {
+                    return id;
+                }
             }
-            let utf8: *const std::os::raw::c_char = msg_send![name, UTF8String];
-            if utf8.is_null() {
-                return "Unknown".to_string();
-            }
-            std::ffi::CStr::from_ptr(utf8)
-                .to_string_lossy()
-                .into_owned()
+            let name_obj: *mut Object = msg_send![app, localizedName];
+            ns_string_to_rust(name_obj).unwrap_or_else(|| "Unknown".to_string())
         }
 
         unsafe extern "C" fn tap_callback(
