@@ -38,12 +38,16 @@ jobs:
                   sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" desktop/src-tauri/tauri.conf.json
                   # desktop/src-tauri/Cargo.toml
                   sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" desktop/src-tauri/Cargo.toml
+                  # desktop/src-tauri/Cargo.lock — only the [[package]] entry for "keli-keli"
+                  # Matches the exact line `name = "keli-keli"`, then replaces the very next
+                  # line (which Cargo.lock guarantees is `version = "..."`).
+                  sed -i '/^name = "keli-keli"$/{n; s/^version = "[^"]*"/version = "'"$VERSION"'"/}' desktop/src-tauri/Cargo.lock
 
             - name: Commit version bump
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml
+                  git add desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock
                   if git diff --cached --quiet; then
                     echo "No version changes to commit."
                   else
