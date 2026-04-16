@@ -176,7 +176,16 @@ mod app_icon {
         result
     }
 
-    fn find_app(app_name: &str) -> Option<String> {
+    /// Resolve an app path from a bundle identifier or display name.
+    /// Prefers `NSWorkspace.URLForApplicationWithBundleIdentifier` (works for
+    /// bundle ids like `com.microsoft.VSCode`), then falls back to searching
+    /// standard directories by `{name}.app` for the rare non-bundle-id case.
+    fn find_app(app_id: &str) -> Option<String> {
+        // Try NSWorkspace bundle-id lookup first (accurate, no filesystem scan).
+        if let Some(path) = find_app_by_bundle_id(app_id) {
+            return Some(path);
+        }
+        // Fallback: filesystem search for apps without a bundle id.
         let home = dirs::home_dir()?;
         let search_dirs = [
             "/Applications".to_string(),
@@ -185,9 +194,45 @@ mod app_icon {
             format!("{}/Applications", home.display()),
         ];
         search_dirs.iter().find_map(|dir| {
-            let path = format!("{}/{}.app", dir, app_name);
+            let path = format!("{}/{}.app", dir, app_id);
             std::path::Path::new(&path).exists().then_some(path)
         })
+    }
+
+    fn find_app_by_bundle_id(bundle_id: &str) -> Option<String> {
+        use objc::runtime::{Class, Object};
+        use objc::{msg_send, sel, sel_impl};
+        unsafe {
+            let ws_class = Class::get("NSWorkspace")?;
+            let workspace: *mut Object = msg_send![ws_class, sharedWorkspace];
+            if workspace.is_null() {
+                return None;
+            }
+            let ns_str_class = Class::get("NSString")?;
+            let c_str = std::ffi::CString::new(bundle_id).ok()?;
+            let ns_bundle_id: *mut Object =
+                msg_send![ns_str_class, stringWithUTF8String: c_str.as_ptr()];
+            if ns_bundle_id.is_null() {
+                return None;
+            }
+            let url: *mut Object =
+                msg_send![workspace, URLForApplicationWithBundleIdentifier: ns_bundle_id];
+            if url.is_null() {
+                return None;
+            }
+            let path_obj: *mut Object = msg_send![url, path];
+            if path_obj.is_null() {
+                return None;
+            }
+            let utf8: *const std::os::raw::c_char = msg_send![path_obj, UTF8String];
+            if utf8.is_null() {
+                return None;
+            }
+            let s = std::ffi::CStr::from_ptr(utf8)
+                .to_string_lossy()
+                .into_owned();
+            if s.is_empty() { None } else { Some(s) }
+        }
     }
 
     fn icon_file(app_path: &str) -> Option<String> {
