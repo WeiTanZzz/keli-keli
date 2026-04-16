@@ -155,6 +155,23 @@ impl Storage {
         (left, right)
     }
 
+    /// Returns (keystrokes, left_clicks, right_clicks) summed across all time.
+    pub fn all_time_counts(&self) -> (u64, u64, u64) {
+        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
+        let keystrokes = data.counts.values().sum();
+        let left = data
+            .app_left_click_counts
+            .values()
+            .flat_map(|m| m.values())
+            .sum();
+        let right = data
+            .app_right_click_counts
+            .values()
+            .flat_map(|m| m.values())
+            .sum();
+        (keystrokes, left, right)
+    }
+
     /// Returns (date, keystrokes, left_clicks, right_clicks) for the most recent `days` days,
     /// sorted ascending by date.
     pub fn get_daily_stats(&self, days: usize) -> Vec<(String, u64, u64, u64)> {
@@ -463,6 +480,19 @@ mod tests {
         // These should recover gracefully, not panic
         assert_eq!(s.today_count(), 0);
         assert_eq!(s.increment_today(), 1);
+    }
+
+    #[test]
+    fn all_time_counts_sums_all_days() {
+        let (_dir, s) = temp_storage();
+        s.increment_today();
+        s.increment_today();
+        s.increment_today_app_click("Safari", 0);
+        s.increment_today_app_click("Finder", 1);
+        let (ks, left, right) = s.all_time_counts();
+        assert_eq!(ks, 2);
+        assert_eq!(left, 1);
+        assert_eq!(right, 1);
     }
 
     #[test]

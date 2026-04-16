@@ -563,37 +563,49 @@ async fn key_loop(
     }
 }
 
-async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &config::SyncConfig) {
+/// Snapshot of cumulative counts used to compute the per-interval delta.
+#[derive(Default, Clone, Copy)]
+struct SyncSnapshot {
+    keystrokes: u64,
+    left_clicks: u64,
+    right_clicks: u64,
+}
+
+async fn do_sync(
+    client: &reqwest::Client,
+    storage: &storage::Storage,
+    cfg: &config::SyncConfig,
+    prev: &SyncSnapshot,
+) -> SyncSnapshot {
     // Reject non-http(s) URLs to prevent SSRF via file://, ftp://, etc.
     let scheme = cfg.api_url.split("://").next().unwrap_or("");
     if scheme != "http" && scheme != "https" {
-        return;
+        return *prev;
     }
-    let days = storage.get_daily_stats(cfg.sync_days);
-    let from = days.first().map(|(d, _, _, _)| d.as_str()).unwrap_or("");
-    let to = days.last().map(|(d, _, _, _)| d.as_str()).unwrap_or("");
-    let day_entries: Vec<_> = days
-        .iter()
-        .map(|(date, keystrokes, left_clicks, right_clicks)| {
-            serde_json::json!({
-                "date": date,
-                "keystrokes": keystrokes,
-                "left_clicks": left_clicks,
-                "right_clicks": right_clicks,
-            })
-        })
-        .collect();
+    let (ks, left, right) = storage.all_time_counts();
+    let now = SyncSnapshot { keystrokes: ks, left_clicks: left, right_clicks: right };
+    let synced_at = chrono::Local::now().to_rfc3339();
     client
         .post(&cfg.api_url)
         .bearer_auth(&cfg.api_key)
         .json(&serde_json::json!({
-            "from": from,
-            "to": to,
-            "days": day_entries,
+            "synced_at": synced_at,
+            "totals": {
+                "keystrokes": ks,
+                "left_clicks": left,
+                "right_clicks": right,
+            },
+            "delta": {
+                "keystrokes": ks.saturating_sub(prev.keystrokes),
+                "left_clicks": left.saturating_sub(prev.left_clicks),
+                "right_clicks": right.saturating_sub(prev.right_clicks),
+                "period_secs": cfg.interval_secs,
+            },
         }))
         .send()
         .await
         .ok();
+    now
 }
 
 async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
@@ -601,9 +613,15 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
     let mut interval = tokio::time::interval(Duration::from_secs(cfg.interval_secs));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     interval.tick().await; // skip the first immediate tick
+    // Snapshot before the first real tick so the first delta reflects activity
+    // since the app started, not since the beginning of time.
+    let mut prev = {
+        let (ks, left, right) = storage.all_time_counts();
+        SyncSnapshot { keystrokes: ks, left_clicks: left, right_clicks: right }
+    };
     loop {
         interval.tick().await;
-        do_sync(&client, &storage, &cfg).await;
+        prev = do_sync(&client, &storage, &cfg, &prev).await;
     }
 }
 
@@ -699,7 +717,6 @@ mod tests {
             api_url: url.to_string(),
             api_key: "test-key".to_string(),
             interval_secs: 60,
-            sync_days: 7,
         }
     }
 
@@ -710,22 +727,16 @@ mod tests {
     // ── do_sync tests ────────────────────────────────────────────────────────
 
     #[tokio::test]
-    async fn sync_sends_correct_json_payload() {
+    async fn sync_sends_totals_and_delta() {
         let mut server = mockito::Server::new_async().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
         let mock = server
             .mock("POST", "/")
             .match_header("authorization", "Bearer test-key")
-            .match_body(mockito::Matcher::Json(serde_json::json!({
-                "from": today,
-                "to": today,
-                "days": [{
-                    "date": today,
-                    "keystrokes": 3u64,
-                    "left_clicks": 2u64,
-                    "right_clicks": 1u64,
-                }],
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "totals": { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64 },
+                "delta":  { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64,
+                             "period_secs": 60u64 },
             })))
             .with_status(200)
             .expect(1)
@@ -741,7 +752,36 @@ mod tests {
         storage.increment_today_app_click("Safari", 1);
 
         let client = reqwest::Client::new();
-        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+        let prev = SyncSnapshot::default(); // zero baseline → delta == totals
+        do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_delta_reflects_activity_since_last_sync() {
+        let mut server = mockito::Server::new_async().await;
+
+        // Totals: 10 keystrokes; prev was 7 → delta should be 3
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "totals": { "keystrokes": 10u64, "left_clicks": 0u64, "right_clicks": 0u64 },
+                "delta":  { "keystrokes": 3u64,  "left_clicks": 0u64, "right_clicks": 0u64 },
+            })))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        for _ in 0..10 {
+            storage.increment_today();
+        }
+
+        let client = reqwest::Client::new();
+        let prev = SyncSnapshot { keystrokes: 7, left_clicks: 0, right_clicks: 0 };
+        do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
 
         mock.assert_async().await;
     }
@@ -760,10 +800,11 @@ mod tests {
         let (_dir, storage) = temp_storage();
         let client = reqwest::Client::new();
         let cfg = test_sync_cfg(&server.url());
+        let prev = SyncSnapshot::default();
 
         // Two syncs despite 500 responses — should not panic
-        do_sync(&client, &storage, &cfg).await;
-        do_sync(&client, &storage, &cfg).await;
+        do_sync(&client, &storage, &cfg, &prev).await;
+        do_sync(&client, &storage, &cfg, &prev).await;
 
         mock.assert_async().await;
     }
@@ -780,58 +821,9 @@ mod tests {
                 api_url: bad_url.to_string(),
                 api_key: "k".to_string(),
                 interval_secs: 60,
-                sync_days: 7,
             };
-            do_sync(&client, &storage, &cfg).await; // must return without error
+            do_sync(&client, &storage, &cfg, &SyncSnapshot::default()).await;
         }
-    }
-
-    #[tokio::test]
-    async fn sync_sends_empty_days_when_no_data() {
-        let mut server = mockito::Server::new_async().await;
-
-        let mock = server
-            .mock("POST", "/")
-            .match_body(mockito::Matcher::Json(serde_json::json!({
-                "from": "",
-                "to": "",
-                "days": [],
-            })))
-            .with_status(200)
-            .expect(1)
-            .create_async()
-            .await;
-
-        let (_dir, storage) = temp_storage();
-        let client = reqwest::Client::new();
-        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
-
-        mock.assert_async().await;
-    }
-
-    #[tokio::test]
-    async fn sync_includes_multiple_days_in_range() {
-        let mut server = mockito::Server::new_async().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-        // Just verify the payload has "days" as an array with today's entry
-        let mock = server
-            .mock("POST", "/")
-            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
-                "from": today,
-                "to": today,
-            })))
-            .with_status(200)
-            .expect(1)
-            .create_async()
-            .await;
-
-        let (_dir, storage) = temp_storage();
-        storage.increment_today();
-        let client = reqwest::Client::new();
-        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
-
-        mock.assert_async().await;
     }
 
     // ── ws_loop tests ────────────────────────────────────────────────────────

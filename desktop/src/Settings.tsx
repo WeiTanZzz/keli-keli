@@ -1037,17 +1037,6 @@ function SyncSection({
                                 }
                             />
                         </FormRow>
-                        <FormRow label="Sync history (days)">
-                            <Input
-                                type="number"
-                                value={cfg.sync.sync_days}
-                                onChange={(e) =>
-                                    onUpdate({
-                                        sync_days: Number(e.target.value),
-                                    })
-                                }
-                            />
-                        </FormRow>
                     </>
                 )}
             </Card>

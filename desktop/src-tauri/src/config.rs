@@ -8,13 +8,6 @@ pub struct SyncConfig {
     pub api_url: String,
     pub api_key: String,
     pub interval_secs: u64,
-    /// Number of days of history to include in each sync payload (default 7).
-    #[serde(default = "default_sync_days")]
-    pub sync_days: usize,
-}
-
-fn default_sync_days() -> usize {
-    7
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +33,6 @@ impl Default for Config {
                 api_url: String::new(),
                 api_key: String::new(),
                 interval_secs: 60,
-                sync_days: default_sync_days(),
             },
             websocket: WebSocketConfig {
                 enabled: false,
