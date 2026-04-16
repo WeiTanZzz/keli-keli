@@ -954,13 +954,11 @@ function GeneralSection({
     cfg,
     onAutostart,
     onFlushInterval,
-    onAutoUpdate,
 }: {
     autostart: boolean
     cfg: Config
     onAutostart: (v: boolean) => void
     onFlushInterval: (v: string) => void
-    onAutoUpdate: (v: boolean) => void
 }) {
     return (
         <div className="flex flex-col gap-4">
@@ -971,15 +969,6 @@ function GeneralSection({
                     description="Start KeliKeli when you log in"
                 >
                     <Switch checked={autostart} onCheckedChange={onAutostart} />
-                </FormRow>
-                <FormRow
-                    label="Auto-update"
-                    description="Automatically install updates at launch"
-                >
-                    <Switch
-                        checked={cfg.auto_update}
-                        onCheckedChange={onAutoUpdate}
-                    />
                 </FormRow>
                 <FormRow
                     label="Flush interval"
@@ -1107,10 +1096,14 @@ function WebSocketSection({
 
 function AboutSection({
     update,
+    cfg,
     onInstall,
+    onAutoUpdate,
 }: {
     update: UpdateState
+    cfg: Config
     onInstall: () => void
+    onAutoUpdate: (v: boolean) => void
 }) {
     return (
         <div className="flex flex-col gap-4">
@@ -1145,6 +1138,15 @@ function AboutSection({
                             {update.message}
                         </span>
                     )}
+                </FormRow>
+                <FormRow
+                    label="Auto-update"
+                    description="Automatically install updates at launch"
+                >
+                    <Switch
+                        checked={cfg.auto_update}
+                        onCheckedChange={onAutoUpdate}
+                    />
                 </FormRow>
             </Card>
         </div>
@@ -1413,7 +1415,6 @@ export default function Settings() {
                                 autostart={autostart}
                                 cfg={cfg}
                                 onAutostart={handleAutostart}
-                                onAutoUpdate={handleAutoUpdate}
                                 onFlushInterval={(v) =>
                                     setCfg((c) =>
                                         c
@@ -1433,10 +1434,12 @@ export default function Settings() {
                         {active === "websocket" && cfg && (
                             <WebSocketSection cfg={cfg} onUpdate={setWs} />
                         )}
-                        {active === "about" && (
+                        {active === "about" && cfg && (
                             <AboutSection
                                 update={update}
+                                cfg={cfg}
                                 onInstall={handleInstall}
+                                onAutoUpdate={handleAutoUpdate}
                             />
                         )}
                     </div>
