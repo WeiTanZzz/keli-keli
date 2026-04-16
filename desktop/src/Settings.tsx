@@ -1336,7 +1336,7 @@ export default function Settings() {
     const showSave = active !== "statistics" && active !== "about"
 
     return (
-        <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden">
+        <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden rounded-xl">
             <TitleBar />
 
             <div className="flex flex-1 min-h-0">
