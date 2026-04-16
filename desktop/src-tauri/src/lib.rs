@@ -638,7 +638,7 @@ async fn startup_update_check(app: AppHandle, auto_update: bool) {
 /// Show a macOS system notification telling the user a new version is ready.
 /// Clicking the notification opens the Settings window.
 #[cfg(target_os = "macos")]
-fn show_update_notification(app: &AppHandle, version: &str) {
+fn show_update_notification(_app: &AppHandle, version: &str) {
     use objc::runtime::{Class, Object};
     use objc::{msg_send, sel, sel_impl};
     unsafe {
