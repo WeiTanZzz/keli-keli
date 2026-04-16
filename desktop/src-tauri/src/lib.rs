@@ -964,8 +964,16 @@ mod tests {
             .unwrap();
         let mut ws = accept_async(stream).await.unwrap();
 
-        tx.send(WsEvent::Click { app: "Finder".into(), button: 0 }).unwrap();
-        tx.send(WsEvent::Click { app: "Safari".into(), button: 1 }).unwrap();
+        tx.send(WsEvent::Click {
+            app: "Finder".into(),
+            button: 0,
+        })
+        .unwrap();
+        tx.send(WsEvent::Click {
+            app: "Safari".into(),
+            button: 1,
+        })
+        .unwrap();
 
         let left_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
             .await
