@@ -435,10 +435,7 @@ pub fn run() {
             }
 
             setup_tray(app.handle())?;
-            tauri::async_runtime::spawn(startup_update_check(
-                app.handle().clone(),
-                auto_update,
-            ));
+            tauri::async_runtime::spawn(startup_update_check(app.handle().clone(), auto_update));
             let ws_tx = ws_url.map(|url| {
                 let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
                 tauri::async_runtime::spawn(ws_loop(rx, url));
@@ -621,16 +618,15 @@ async fn startup_update_check(app: AppHandle, auto_update: bool) {
     let current = app.package_info().version.to_string();
     let latest = update.version.clone();
     if auto_update {
-        if update
-            .download_and_install(|_, _| {}, || {})
-            .await
-            .is_ok()
-        {
+        if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
             app.restart();
         }
     } else {
-        app.emit("update_available", UpdateAvailablePayload { current, latest })
-            .ok();
+        app.emit(
+            "update_available",
+            UpdateAvailablePayload { current, latest },
+        )
+        .ok();
     }
 }
 
