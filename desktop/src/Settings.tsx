@@ -1340,89 +1340,90 @@ export default function Settings() {
             <TitleBar />
 
             <div className="flex flex-1 min-h-0">
-            {/* Sidebar */}
-            <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
-                {/* Nav */}
-                <nav className="flex flex-col gap-0.5 p-2 mt-2">
-                    {NAV_ITEMS.map((item) => {
-                        const Icon = item.icon
-                        const isActive = active === item.id
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => setActive(item.id)}
-                                className={cn(
-                                    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-left w-full transition-colors",
-                                    isActive
-                                        ? "bg-indigo-500 text-white shadow-sm"
-                                        : "text-zinc-600 hover:bg-zinc-200/70",
-                                )}
-                            >
-                                <Icon className="h-3.5 w-3.5 shrink-0" />
-                                {item.label}
-                            </button>
-                        )
-                    })}
-                </nav>
-            </aside>
+                {/* Sidebar */}
+                <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
+                    {/* Nav */}
+                    <nav className="flex flex-col gap-0.5 p-2 mt-2">
+                        {NAV_ITEMS.map((item) => {
+                            const Icon = item.icon
+                            const isActive = active === item.id
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setActive(item.id)}
+                                    className={cn(
+                                        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-left w-full transition-colors",
+                                        isActive
+                                            ? "bg-indigo-500 text-white shadow-sm"
+                                            : "text-zinc-600 hover:bg-zinc-200/70",
+                                    )}
+                                >
+                                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                                    {item.label}
+                                </button>
+                            )
+                        })}
+                    </nav>
+                </aside>
 
-            {/* Content */}
-            <main className="flex flex-col flex-1 min-w-0">
-                <div className="flex-1 overflow-y-auto p-5">
-                    {active === "statistics" && (
-                        <StatisticsSection
-                            stats={stats}
-                            appStats={appStats}
-                            clickStats={clickStats}
-                        />
-                    )}
-                    {active === "general" && cfg && (
-                        <GeneralSection
-                            autostart={autostart}
-                            cfg={cfg}
-                            onAutostart={handleAutostart}
-                            onFlushInterval={(v) =>
-                                setCfg((c) =>
-                                    c
-                                        ? {
-                                              ...c,
-                                              flush_interval_secs: Number(v),
-                                          }
-                                        : c,
-                                )
-                            }
-                        />
-                    )}
-                    {active === "sync" && cfg && (
-                        <SyncSection cfg={cfg} onUpdate={setSync} />
-                    )}
-                    {active === "websocket" && cfg && (
-                        <WebSocketSection cfg={cfg} onUpdate={setWs} />
-                    )}
-                    {active === "about" && (
-                        <AboutSection
-                            update={update}
-                            onInstall={handleInstall}
-                        />
-                    )}
-                </div>
+                {/* Content */}
+                <main className="flex flex-col flex-1 min-w-0">
+                    <div className="flex-1 overflow-y-auto p-5">
+                        {active === "statistics" && (
+                            <StatisticsSection
+                                stats={stats}
+                                appStats={appStats}
+                                clickStats={clickStats}
+                            />
+                        )}
+                        {active === "general" && cfg && (
+                            <GeneralSection
+                                autostart={autostart}
+                                cfg={cfg}
+                                onAutostart={handleAutostart}
+                                onFlushInterval={(v) =>
+                                    setCfg((c) =>
+                                        c
+                                            ? {
+                                                  ...c,
+                                                  flush_interval_secs:
+                                                      Number(v),
+                                              }
+                                            : c,
+                                    )
+                                }
+                            />
+                        )}
+                        {active === "sync" && cfg && (
+                            <SyncSection cfg={cfg} onUpdate={setSync} />
+                        )}
+                        {active === "websocket" && cfg && (
+                            <WebSocketSection cfg={cfg} onUpdate={setWs} />
+                        )}
+                        {active === "about" && (
+                            <AboutSection
+                                update={update}
+                                onInstall={handleInstall}
+                            />
+                        )}
+                    </div>
 
-                {showSave && (
-                    <>
-                        <Separator />
-                        <div className="p-4">
-                            <Button
-                                size="full"
-                                variant={saved ? "success" : "default"}
-                                onClick={handleSave}
-                            >
-                                {saved ? "Saved ✓" : "Save"}
-                            </Button>
-                        </div>
-                    </>
-                )}
-            </main>
+                    {showSave && (
+                        <>
+                            <Separator />
+                            <div className="p-4">
+                                <Button
+                                    size="full"
+                                    variant={saved ? "success" : "default"}
+                                    onClick={handleSave}
+                                >
+                                    {saved ? "Saved ✓" : "Save"}
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </main>
             </div>
         </div>
     )
