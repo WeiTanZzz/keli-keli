@@ -59,7 +59,8 @@ struct UpdateStatus {
 }
 
 enum WsEvent {
-    Keystroke(u64),
+    Keystroke { app: String },
+    Click { app: String, button: u8 },
     TypingStart,
     TypingStop,
 }
@@ -542,6 +543,13 @@ async fn key_loop(
                             },
                         )
                         .ok();
+                        if let Some(tx) = &ws_tx {
+                            tx.send(WsEvent::Click {
+                                app: app_name.clone(),
+                                button,
+                            })
+                            .ok();
+                        }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
                             storage.save();
@@ -566,7 +574,7 @@ async fn key_loop(
                             }
                         }
                         if let Some(tx) = &ws_tx {
-                            tx.send(WsEvent::Keystroke(count)).ok();
+                            tx.send(WsEvent::Keystroke { app: app_name.clone() }).ok();
                         }
                         last_key = Instant::now();
                         if last_flush.elapsed() >= flush_duration {
@@ -587,21 +595,53 @@ async fn key_loop(
     }
 }
 
-async fn do_sync(client: &reqwest::Client, storage: &storage::Storage, cfg: &config::SyncConfig) {
+/// Snapshot of cumulative counts used to compute the per-interval delta.
+#[derive(Default, Clone, Copy)]
+struct SyncSnapshot {
+    keystrokes: u64,
+    left_clicks: u64,
+    right_clicks: u64,
+}
+
+async fn do_sync(
+    client: &reqwest::Client,
+    storage: &storage::Storage,
+    cfg: &config::SyncConfig,
+    prev: &SyncSnapshot,
+) -> SyncSnapshot {
     // Reject non-http(s) URLs to prevent SSRF via file://, ftp://, etc.
     let scheme = cfg.api_url.split("://").next().unwrap_or("");
     if scheme != "http" && scheme != "https" {
-        return;
+        return *prev;
     }
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let count = storage.today_count();
+    let (ks, left, right) = storage.all_time_counts();
+    let now = SyncSnapshot {
+        keystrokes: ks,
+        left_clicks: left,
+        right_clicks: right,
+    };
+    let synced_at = chrono::Local::now().to_rfc3339();
     client
         .post(&cfg.api_url)
         .bearer_auth(&cfg.api_key)
-        .json(&serde_json::json!({ "date": today, "count": count }))
+        .json(&serde_json::json!({
+            "synced_at": synced_at,
+            "totals": {
+                "keystrokes": ks,
+                "left_clicks": left,
+                "right_clicks": right,
+            },
+            "delta": {
+                "keystrokes": ks.saturating_sub(prev.keystrokes),
+                "left_clicks": left.saturating_sub(prev.left_clicks),
+                "right_clicks": right.saturating_sub(prev.right_clicks),
+                "period_secs": cfg.interval_secs,
+            },
+        }))
         .send()
         .await
         .ok();
+    now
 }
 
 async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
@@ -609,9 +649,19 @@ async fn sync_loop(storage: storage::Storage, cfg: config::SyncConfig) {
     let mut interval = tokio::time::interval(Duration::from_secs(cfg.interval_secs));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     interval.tick().await; // skip the first immediate tick
+                           // Snapshot before the first real tick so the first delta reflects activity
+                           // since the app started, not since the beginning of time.
+    let mut prev = {
+        let (ks, left, right) = storage.all_time_counts();
+        SyncSnapshot {
+            keystrokes: ks,
+            left_clicks: left,
+            right_clicks: right,
+        }
+    };
     loop {
         interval.tick().await;
-        do_sync(&client, &storage, &cfg).await;
+        prev = do_sync(&client, &storage, &cfg, &prev).await;
     }
 }
 
@@ -649,8 +699,13 @@ async fn ws_loop(mut rx: mpsc::UnboundedReceiver<WsEvent>, url: String) {
                     match event {
                         Some(event) => {
                             let payload = match event {
-                                WsEvent::Keystroke(count) => {
-                                    serde_json::json!({ "type": "keystroke", "count": count })
+                                WsEvent::Keystroke { app } => {
+                                    serde_json::json!({ "type": "keystroke", "app": app })
+                                }
+                                WsEvent::Click { app, button } => {
+                                    let click_type =
+                                        if button == 0 { "left_click" } else { "right_click" };
+                                    serde_json::json!({ "type": click_type, "app": app })
                                 }
                                 WsEvent::TypingStart => {
                                     serde_json::json!({ "type": "typing_start" })
@@ -712,16 +767,17 @@ mod tests {
     // ── do_sync tests ────────────────────────────────────────────────────────
 
     #[tokio::test]
-    async fn sync_sends_correct_json_payload() {
+    async fn sync_sends_totals_and_delta() {
         let mut server = mockito::Server::new_async().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
         let mock = server
             .mock("POST", "/")
             .match_header("authorization", "Bearer test-key")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 3u64 }),
-            ))
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "totals": { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64 },
+                "delta":  { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64,
+                             "period_secs": 60u64 },
+            })))
             .with_status(200)
             .expect(1)
             .create_async()
@@ -731,9 +787,45 @@ mod tests {
         for _ in 0..3 {
             storage.increment_today();
         }
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 1);
 
         let client = reqwest::Client::new();
-        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
+        let prev = SyncSnapshot::default(); // zero baseline → delta == totals
+        do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_delta_reflects_activity_since_last_sync() {
+        let mut server = mockito::Server::new_async().await;
+
+        // Totals: 10 keystrokes; prev was 7 → delta should be 3
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "totals": { "keystrokes": 10u64, "left_clicks": 0u64, "right_clicks": 0u64 },
+                "delta":  { "keystrokes": 3u64,  "left_clicks": 0u64, "right_clicks": 0u64 },
+            })))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        for _ in 0..10 {
+            storage.increment_today();
+        }
+
+        let client = reqwest::Client::new();
+        let prev = SyncSnapshot {
+            keystrokes: 7,
+            left_clicks: 0,
+            right_clicks: 0,
+        };
+        do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
 
         mock.assert_async().await;
     }
@@ -752,10 +844,11 @@ mod tests {
         let (_dir, storage) = temp_storage();
         let client = reqwest::Client::new();
         let cfg = test_sync_cfg(&server.url());
+        let prev = SyncSnapshot::default();
 
         // Two syncs despite 500 responses — should not panic
-        do_sync(&client, &storage, &cfg).await;
-        do_sync(&client, &storage, &cfg).await;
+        do_sync(&client, &storage, &cfg, &prev).await;
+        do_sync(&client, &storage, &cfg, &prev).await;
 
         mock.assert_async().await;
     }
@@ -773,30 +866,8 @@ mod tests {
                 api_key: "k".to_string(),
                 interval_secs: 60,
             };
-            do_sync(&client, &storage, &cfg).await; // must return without error
+            do_sync(&client, &storage, &cfg, &SyncSnapshot::default()).await;
         }
-    }
-
-    #[tokio::test]
-    async fn sync_sends_zero_count_when_no_keystrokes() {
-        let mut server = mockito::Server::new_async().await;
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-        let mock = server
-            .mock("POST", "/")
-            .match_body(mockito::Matcher::Json(
-                serde_json::json!({ "date": today, "count": 0u64 }),
-            ))
-            .with_status(200)
-            .expect(1)
-            .create_async()
-            .await;
-
-        let (_dir, storage) = temp_storage();
-        let client = reqwest::Client::new();
-        do_sync(&client, &storage, &test_sync_cfg(&server.url())).await;
-
-        mock.assert_async().await;
     }
 
     // ── ws_loop tests ────────────────────────────────────────────────────────
@@ -815,7 +886,10 @@ mod tests {
             .unwrap();
         let mut ws = accept_async(stream).await.unwrap();
 
-        tx.send(WsEvent::Keystroke(42)).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Xcode".into(),
+        })
+        .unwrap();
 
         let msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
             .await
@@ -825,7 +899,7 @@ mod tests {
 
         let val = parse_ws_msg(&msg);
         assert_eq!(val["type"], "keystroke");
-        assert_eq!(val["count"], 42);
+        assert_eq!(val["app"], "Xcode");
     }
 
     #[tokio::test]
@@ -876,13 +950,16 @@ mod tests {
         let mut ws1 = accept_async(s1).await.unwrap();
 
         // Send and receive event 1
-        tx.send(WsEvent::Keystroke(1)).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
         let msg1 = tokio::time::timeout(Duration::from_secs(2), ws1.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg1)["count"], 1);
+        assert_eq!(parse_ws_msg(&msg1)["type"], "keystroke");
 
         // Drop the server side. ws_loop's select! is also polling read.next(),
         // so it detects the TCP FIN immediately — no sleep needed.
@@ -897,21 +974,71 @@ mod tests {
             .unwrap();
         let mut ws2 = accept_async(s2).await.unwrap();
 
-        tx.send(WsEvent::Keystroke(2)).unwrap();
-        tx.send(WsEvent::Keystroke(3)).unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
+        tx.send(WsEvent::Keystroke {
+            app: "Terminal".into(),
+        })
+        .unwrap();
 
         let msg2 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg2)["count"], 2);
+        assert_eq!(parse_ws_msg(&msg2)["type"], "keystroke");
 
         let msg3 = tokio::time::timeout(Duration::from_secs(2), ws2.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(parse_ws_msg(&msg3)["count"], 3);
+        assert_eq!(parse_ws_msg(&msg3)["type"], "keystroke");
+    }
+
+    #[tokio::test]
+    async fn ws_delivers_left_and_right_click_events() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let (tx, rx) = mpsc::unbounded_channel::<WsEvent>();
+        tokio::spawn(ws_loop(rx, format!("ws://127.0.0.1:{port}")));
+
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut ws = accept_async(stream).await.unwrap();
+
+        tx.send(WsEvent::Click {
+            app: "Finder".into(),
+            button: 0,
+        })
+        .unwrap();
+        tx.send(WsEvent::Click {
+            app: "Safari".into(),
+            button: 1,
+        })
+        .unwrap();
+
+        let left_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let left = parse_ws_msg(&left_msg);
+        assert_eq!(left["type"], "left_click");
+        assert_eq!(left["app"], "Finder");
+
+        let right_msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let right = parse_ws_msg(&right_msg);
+        assert_eq!(right["type"], "right_click");
+        assert_eq!(right["app"], "Safari");
     }
 }
