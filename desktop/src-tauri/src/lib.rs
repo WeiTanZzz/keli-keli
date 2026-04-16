@@ -466,8 +466,9 @@ fn open_settings_window(app: &AppHandle) {
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("KeliKeli Settings")
-        .inner_size(660.0, 520.0)
+        .inner_size(660.0, 556.0)
         .resizable(false)
+        .decorations(false)
         .center()
         .build()
         .ok();

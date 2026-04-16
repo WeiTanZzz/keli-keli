@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -1139,6 +1140,54 @@ function AboutSection({
     )
 }
 
+// ─── Custom titlebar ──────────────────────────────────────────────────────────
+
+function TitleBar() {
+    const win = getCurrentWindow()
+    return (
+        <div
+            data-tauri-drag-region
+            className="relative flex h-9 items-center shrink-0 bg-zinc-50 border-b border-zinc-200"
+        >
+            {/* macOS traffic-light buttons */}
+            <div className="flex items-center gap-1.5 px-3 z-10">
+                <button
+                    type="button"
+                    onClick={() => win.close()}
+                    className="group w-3 h-3 rounded-full bg-[#ff5f57] flex items-center justify-center transition-opacity hover:opacity-90"
+                    aria-label="Close"
+                >
+                    <span className="opacity-0 group-hover:opacity-100 text-[7px] text-[#590000] font-black leading-none select-none">
+                        ✕
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => win.minimize()}
+                    className="group w-3 h-3 rounded-full bg-[#febc2e] flex items-center justify-center transition-opacity hover:opacity-90"
+                    aria-label="Minimize"
+                >
+                    <span className="opacity-0 group-hover:opacity-100 text-[9px] text-[#5a3d00] font-black leading-none select-none">
+                        −
+                    </span>
+                </button>
+                {/* Zoom button — disabled, window is fixed size */}
+                <div
+                    className="w-3 h-3 rounded-full bg-[#28c840] opacity-40 cursor-not-allowed"
+                    aria-label="Zoom (unavailable)"
+                />
+            </div>
+
+            {/* Centered title — pointer-events-none so drag region stays active */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[12px] font-medium text-zinc-500 select-none">
+                    KeliKeli
+                </span>
+            </div>
+        </div>
+    )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -1287,21 +1336,14 @@ export default function Settings() {
     const showSave = active !== "statistics" && active !== "about"
 
     return (
-        <div className="flex h-screen bg-zinc-100 font-sans select-none overflow-hidden">
+        <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden">
+            <TitleBar />
+
+            <div className="flex flex-1 min-h-0">
             {/* Sidebar */}
             <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
-                {/* Logo */}
-                <div className="flex items-center gap-2 px-4 py-4">
-                    <span className="text-lg">⌨️</span>
-                    <span className="font-semibold text-sm text-zinc-800">
-                        KeliKeli
-                    </span>
-                </div>
-
-                <Separator />
-
                 {/* Nav */}
-                <nav className="flex flex-col gap-0.5 p-2 mt-1">
+                <nav className="flex flex-col gap-0.5 p-2 mt-2">
                     {NAV_ITEMS.map((item) => {
                         const Icon = item.icon
                         const isActive = active === item.id
@@ -1381,6 +1423,7 @@ export default function Settings() {
                     </>
                 )}
             </main>
+            </div>
         </div>
     )
 }
