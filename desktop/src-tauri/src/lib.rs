@@ -231,7 +231,11 @@ mod app_icon {
             let s = std::ffi::CStr::from_ptr(utf8)
                 .to_string_lossy()
                 .into_owned();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         }
     }
 
