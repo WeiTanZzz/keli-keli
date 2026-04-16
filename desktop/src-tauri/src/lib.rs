@@ -4,7 +4,10 @@ mod storage;
 
 use futures_util::{SinkExt, StreamExt};
 use hook::KeyEvent;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use tauri::{
     image::Image as TrayImage,
     menu::{MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem},
@@ -16,6 +19,10 @@ use tokio::time::{Duration, Instant};
 
 struct CountItem(Mutex<MenuItem<Wry>>);
 struct ToggleItem(Mutex<MenuItem<Wry>>);
+
+/// Set to true by the tray "Quit" button so the ExitRequested handler
+/// knows to skip the confirmation dialog (user already chose to quit).
+static SKIP_QUIT_DIALOG: AtomicBool = AtomicBool::new(false);
 
 #[derive(serde::Serialize, Clone)]
 struct KeystrokePayload {
@@ -267,6 +274,45 @@ fn set_autostart(app: AppHandle, enabled: bool) {
     }
 }
 
+/// Create an NSString from a Rust &str (macOS only).
+#[cfg(target_os = "macos")]
+unsafe fn ns_string(s: &str) -> *mut objc::runtime::Object {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+    use std::ffi::CString;
+    let c = CString::new(s).unwrap_or_default();
+    let cls = Class::get("NSString").expect("NSString class");
+    let obj: *mut Object = msg_send![cls, stringWithUTF8String: c.as_ptr()];
+    obj
+}
+
+/// Show a native NSAlert asking the user to confirm quitting.
+/// Returns `true` if the user clicked "Quit".
+#[cfg(target_os = "macos")]
+fn macos_confirm_quit() -> bool {
+    use objc::runtime::{Class, Object, YES};
+    use objc::{msg_send, sel, sel_impl};
+    unsafe {
+        // Bring the app to the front so the alert is visible.
+        let app_cls = Class::get("NSApplication").expect("NSApplication class");
+        let ns_app: *mut Object = msg_send![app_cls, sharedApplication];
+        let _: () = msg_send![ns_app, activateIgnoringOtherApps: YES];
+
+        let alert_cls = Class::get("NSAlert").expect("NSAlert class");
+        let alert: *mut Object = msg_send![alert_cls, new];
+        let _: () = msg_send![alert, setMessageText: ns_string("Quit KeliKeli?")];
+        let _: () = msg_send![alert, setInformativeText: ns_string(
+            "KeliKeli runs in the background and tracks your activity. Quitting will stop all tracking."
+        )];
+        let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Quit")];
+        let _: *mut Object = msg_send![alert, addButtonWithTitle: ns_string("Cancel")];
+
+        // NSAlertFirstButtonReturn = 1000  →  user clicked "Quit"
+        let response: i64 = msg_send![alert, runModal];
+        response == 1000
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn make_webview_transparent(win: &tauri::WebviewWindow) {
     use objc::runtime::{Class, Object, NO};
@@ -400,8 +446,27 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error running tauri app");
+        .build(tauri::generate_context!())
+        .expect("error building tauri app")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if SKIP_QUIT_DIALOG.load(Ordering::Relaxed) {
+                    // Tray "Quit" path — skip the dialog, just let it exit.
+                    return;
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    if !macos_confirm_quit() {
+                        api.prevent_exit();
+                        return;
+                    }
+                }
+                // Flush any unsaved stats before the process exits.
+                if let Some(storage) = app_handle.try_state::<storage::Storage>() {
+                    storage.save();
+                }
+            }
+        });
 }
 
 fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -448,7 +513,13 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "settings" => open_settings_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                // Save any unsaved stats, then bypass the confirmation dialog
+                // (the user already made an explicit choice from the tray menu).
+                app.state::<storage::Storage>().save();
+                SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
+                app.exit(0);
+            }
             _ => {}
         })
         .build(app)?;
