@@ -138,23 +138,6 @@ impl Storage {
         *data.counts.get(&today).unwrap_or(&0)
     }
 
-    /// Returns (left_clicks, right_clicks) totals across all apps for today.
-    pub fn today_click_counts(&self) -> (u64, u64) {
-        let today = today_key();
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
-        let left = data
-            .app_left_click_counts
-            .get(&today)
-            .map(|m| m.values().sum())
-            .unwrap_or(0);
-        let right = data
-            .app_right_click_counts
-            .get(&today)
-            .map(|m| m.values().sum())
-            .unwrap_or(0);
-        (left, right)
-    }
-
     /// Returns (keystrokes, left_clicks, right_clicks) summed across all time.
     pub fn all_time_counts(&self) -> (u64, u64, u64) {
         let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
@@ -170,39 +153,6 @@ impl Storage {
             .flat_map(|m| m.values())
             .sum();
         (keystrokes, left, right)
-    }
-
-    /// Returns (date, keystrokes, left_clicks, right_clicks) for the most recent `days` days,
-    /// sorted ascending by date.
-    pub fn get_daily_stats(&self, days: usize) -> Vec<(String, u64, u64, u64)> {
-        let data = self.0.data.lock().unwrap_or_else(|e| e.into_inner());
-        // Collect all dates that appear in any of the three maps
-        let mut all_dates: HashSet<&String> = HashSet::new();
-        all_dates.extend(data.counts.keys());
-        all_dates.extend(data.app_left_click_counts.keys());
-        all_dates.extend(data.app_right_click_counts.keys());
-        let mut dates: Vec<&String> = all_dates.into_iter().collect();
-        dates.sort_by(|a, b| b.cmp(a));
-        dates.truncate(days);
-        let mut entries: Vec<(String, u64, u64, u64)> = dates
-            .into_iter()
-            .map(|date| {
-                let keystrokes = data.counts.get(date).copied().unwrap_or(0);
-                let left = data
-                    .app_left_click_counts
-                    .get(date)
-                    .map(|m| m.values().sum())
-                    .unwrap_or(0);
-                let right = data
-                    .app_right_click_counts
-                    .get(date)
-                    .map(|m| m.values().sum())
-                    .unwrap_or(0);
-                (date.clone(), keystrokes, left, right)
-            })
-            .collect();
-        entries.sort_by(|a, b| a.0.cmp(&b.0));
-        entries
     }
 
     pub fn get_stats(&self, days: usize) -> Vec<(String, u64)> {
@@ -495,78 +445,4 @@ mod tests {
         assert_eq!(right, 1);
     }
 
-    #[test]
-    fn today_click_counts_sums_across_all_apps() {
-        let (_dir, s) = temp_storage();
-        s.increment_today_app_click("Safari", 0);
-        s.increment_today_app_click("Finder", 0);
-        s.increment_today_app_click("Finder", 1);
-        let (left, right) = s.today_click_counts();
-        assert_eq!(left, 2);
-        assert_eq!(right, 1);
-    }
-
-    #[test]
-    fn today_click_counts_starts_at_zero() {
-        let (_dir, s) = temp_storage();
-        assert_eq!(s.today_click_counts(), (0, 0));
-    }
-
-    #[test]
-    fn get_daily_stats_combines_all_three_data_types() {
-        let dir = TempDir::new().unwrap();
-        let path = dir.path().join("data.json");
-
-        let mut counts = HashMap::new();
-        counts.insert("2024-01-01".to_string(), 100u64);
-        let mut left: HashMap<String, HashMap<String, u64>> = HashMap::new();
-        let mut day_left = HashMap::new();
-        day_left.insert("Safari".to_string(), 5u64);
-        left.insert("2024-01-01".to_string(), day_left);
-        let mut right: HashMap<String, HashMap<String, u64>> = HashMap::new();
-        let mut day_right = HashMap::new();
-        day_right.insert("Finder".to_string(), 3u64);
-        right.insert("2024-01-01".to_string(), day_right);
-
-        let json = serde_json::to_string_pretty(&StatsData {
-            counts,
-            app_left_click_counts: left,
-            app_right_click_counts: right,
-            ..Default::default()
-        })
-        .unwrap();
-        fs::write(&path, json).unwrap();
-
-        let s = Storage::load_from(path);
-        let stats = s.get_daily_stats(7);
-        assert_eq!(stats.len(), 1);
-        let (date, keystrokes, left_clicks, right_clicks) = &stats[0];
-        assert_eq!(date, "2024-01-01");
-        assert_eq!(*keystrokes, 100);
-        assert_eq!(*left_clicks, 5);
-        assert_eq!(*right_clicks, 3);
-    }
-
-    #[test]
-    fn get_daily_stats_truncates_to_most_recent_n_days() {
-        let dir = TempDir::new().unwrap();
-        let path = dir.path().join("data.json");
-
-        let mut counts = HashMap::new();
-        for i in 1u64..=10 {
-            counts.insert(format!("2024-01-{i:02}"), i * 10);
-        }
-        let json = serde_json::to_string_pretty(&StatsData {
-            counts,
-            ..Default::default()
-        })
-        .unwrap();
-        fs::write(&path, json).unwrap();
-
-        let s = Storage::load_from(path);
-        let stats = s.get_daily_stats(3);
-        assert_eq!(stats.len(), 3);
-        assert_eq!(stats[0].0, "2024-01-08");
-        assert_eq!(stats[2].0, "2024-01-10");
-    }
 }
