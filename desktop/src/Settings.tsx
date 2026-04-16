@@ -1,95 +1,4 @@
 import { listen } from "@tauri-apps/api/event"
-
-// Map bundle identifiers to human-readable display names.
-// Apps not in this table fall back to the last segment of their bundle id
-// (e.g. "com.apple.Safari" → "Safari").
-const BUNDLE_NAMES: Record<string, string> = {
-    // Microsoft
-    "com.microsoft.VSCode": "Visual Studio Code",
-    "com.microsoft.VSCodeInsiders": "VS Code Insiders",
-    "com.microsoft.edgemac": "Microsoft Edge",
-    "com.microsoft.teams2": "Microsoft Teams",
-    "com.microsoft.teams": "Microsoft Teams",
-    "com.microsoft.Word": "Microsoft Word",
-    "com.microsoft.Excel": "Microsoft Excel",
-    "com.microsoft.Powerpoint": "Microsoft PowerPoint",
-    "com.microsoft.Outlook": "Microsoft Outlook",
-    "com.microsoft.onenote.mac": "Microsoft OneNote",
-    // JetBrains
-    "com.jetbrains.intellij": "IntelliJ IDEA",
-    "com.jetbrains.intellij.ce": "IntelliJ IDEA CE",
-    "com.jetbrains.pycharm": "PyCharm",
-    "com.jetbrains.pycharm.ce": "PyCharm CE",
-    "com.jetbrains.goland": "GoLand",
-    "com.jetbrains.CLion": "CLion",
-    "com.jetbrains.webstorm": "WebStorm",
-    "com.jetbrains.datagrip": "DataGrip",
-    "com.jetbrains.rider": "Rider",
-    "com.jetbrains.rubymine": "RubyMine",
-    "com.jetbrains.fleet": "Fleet",
-    "com.jetbrains.PhpStorm": "PhpStorm",
-    "com.jetbrains.RustRover": "RustRover",
-    // Editors / IDEs
-    "com.sublimetext.4": "Sublime Text",
-    "com.sublimetext.3": "Sublime Text",
-    "com.sublimetext.2": "Sublime Text",
-    "io.cursor.Cursor": "Cursor",
-    "com.todesktop.230313mzl4w4u92": "Cursor",
-    "com.neovide.neovide": "Neovide",
-    "dev.zed.Zed": "Zed",
-    "dev.zed.Zed-Preview": "Zed Preview",
-    "com.apple.dt.Xcode": "Xcode",
-    // Terminals
-    "com.googlecode.iterm2": "iTerm2",
-    "net.kovidgoyal.kitty": "kitty",
-    "com.github.wez.wezterm": "WezTerm",
-    "dev.alacritty.Alacritty": "Alacritty",
-    // Browsers
-    "com.google.Chrome": "Google Chrome",
-    "com.google.Chrome.canary": "Google Chrome Canary",
-    "org.mozilla.firefox": "Firefox",
-    "com.brave.Browser": "Brave Browser",
-    "com.operasoftware.Opera": "Opera",
-    "com.vivaldi.Vivaldi": "Vivaldi",
-    "com.apple.Safari": "Safari",
-    "company.thebrowser.Browser": "Arc",
-    // Communication
-    "com.tencent.xinWeChat": "WeChat",
-    "com.tencent.QQMacOS": "QQ",
-    "com.bytedance.feishu": "Feishu",
-    "com.dingtalk.macos.mainApp": "DingTalk",
-    "com.hnc.Discord": "Discord",
-    "com.tinyspeck.slackmacgap": "Slack",
-    "com.facebook.archon": "Messenger",
-    "com.facebook.Messenger": "Messenger",
-    "com.telegram.desktop": "Telegram",
-    "ru.keepcoder.Telegram": "Telegram",
-    // Productivity
-    "com.notion.id": "Notion",
-    "md.obsidian": "Obsidian",
-    "com.figma.Desktop": "Figma",
-    "com.linear.linear": "Linear",
-    "com.github.GitHubDesktop": "GitHub Desktop",
-    "com.sourcetreeapp.SourceTree": "Sourcetree",
-    "org.gitkraken.gitkraken": "GitKraken",
-    "com.postmanlabs.mac": "Postman",
-    "io.insomnia.desktop": "Insomnia",
-    "com.docker.docker": "Docker Desktop",
-}
-
-/** Return a display name for an app identifier (bundle id or plain name). */
-function appDisplayName(id: string): string {
-    if (BUNDLE_NAMES[id]) return BUNDLE_NAMES[id]
-    // Extract the last dot-segment as a reasonable fallback:
-    // "com.apple.Safari" → "Safari", "org.mozilla.firefox" → "firefox"
-    const parts = id.split(".")
-    if (parts.length > 1) {
-        const last = parts[parts.length - 1]
-        return last.charAt(0).toUpperCase() + last.slice(1)
-    }
-    return id
-}
-
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -99,6 +8,38 @@ import {
     type Config,
     type DayStat,
 } from "@/api"
+
+// Module-level cache so repeated renders don't re-fetch the same name.
+const displayNameCache = new Map<string, string | null>()
+
+/** Derive a reasonable fallback from a bundle id without an OS lookup. */
+function bundleFallback(id: string): string {
+    const parts = id.split(".")
+    if (parts.length > 1) {
+        const last = parts[parts.length - 1]
+        return last.charAt(0).toUpperCase() + last.slice(1)
+    }
+    return id
+}
+
+/** Returns the OS-resolved display name for a bundle id, falling back to
+ *  the last dot-segment while the async lookup is in flight. */
+function useAppDisplayName(id: string): string {
+    const cached = displayNameCache.get(id)
+    const [name, setName] = useState<string>(cached ?? bundleFallback(id))
+
+    useEffect(() => {
+        if (displayNameCache.has(id)) return
+        api.getAppDisplayName(id).then((n) => {
+            const resolved = n ?? null
+            displayNameCache.set(id, resolved)
+            if (resolved) setName(resolved)
+        })
+    }, [id])
+
+    return name
+}
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -680,70 +621,87 @@ function AppBreakdownChart({
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
-                    {merged.map(({ app, keys, left, right }) => {
-                        const clicks = left + right
-                        const total = keys + clicks
-                        return (
-                            <Tip
-                                key={app}
-                                content={
-                                    <span className="flex gap-2.5">
-                                        <span className="font-medium">
-                                            {appDisplayName(app)}
-                                        </span>
-                                        {keys > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
-                                                {keys.toLocaleString()} keys
-                                            </span>
-                                        )}
-                                        {left > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                                                {left.toLocaleString()} L
-                                            </span>
-                                        )}
-                                        {right > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
-                                                {right.toLocaleString()} R
-                                            </span>
-                                        )}
-                                    </span>
-                                }
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <AppIcon app={app} />
-                                    <span
-                                        className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
-                                        title={appDisplayName(app)}
-                                    >
-                                        {appDisplayName(app)}
-                                    </span>
-                                    <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
-                                        <div
-                                            className="h-full bg-indigo-400 transition-all duration-500"
-                                            style={{
-                                                width: `${(keys / max) * 100}%`,
-                                            }}
-                                        />
-                                        <div
-                                            className="h-full bg-rose-400 transition-all duration-500"
-                                            style={{
-                                                width: `${(clicks / max) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
-                                        {total.toLocaleString()}
-                                    </span>
-                                </div>
-                            </Tip>
-                        )
-                    })}
+                    {merged.map(({ app, keys, left, right }) => (
+                        <AppRow
+                            key={app}
+                            app={app}
+                            keys={keys}
+                            left={left}
+                            right={right}
+                            max={max}
+                        />
+                    ))}
                 </div>
             )}
         </div>
+    )
+}
+
+function AppRow({
+    app,
+    keys,
+    left,
+    right,
+    max,
+}: {
+    app: string
+    keys: number
+    left: number
+    right: number
+    max: number
+}) {
+    const displayName = useAppDisplayName(app)
+    const clicks = left + right
+    const total = keys + clicks
+    return (
+        <Tip
+            content={
+                <span className="flex gap-2.5">
+                    <span className="font-medium">{displayName}</span>
+                    {keys > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
+                            {keys.toLocaleString()} keys
+                        </span>
+                    )}
+                    {left > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
+                            {left.toLocaleString()} L
+                        </span>
+                    )}
+                    {right > 0 && (
+                        <span className="flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
+                            {right.toLocaleString()} R
+                        </span>
+                    )}
+                </span>
+            }
+        >
+            <div className="flex items-center gap-2.5">
+                <AppIcon app={app} />
+                <span
+                    className="text-[11px] text-zinc-500 w-20 truncate shrink-0"
+                    title={displayName}
+                >
+                    {displayName}
+                </span>
+                <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                    <div
+                        className="h-full bg-indigo-400 transition-all duration-500"
+                        style={{ width: `${(keys / max) * 100}%` }}
+                    />
+                    <div
+                        className="h-full bg-rose-400 transition-all duration-500"
+                        style={{ width: `${(clicks / max) * 100}%` }}
+                    />
+                </div>
+                <span className="text-[11px] text-zinc-400 w-14 text-right tabular-nums">
+                    {total.toLocaleString()}
+                </span>
+            </div>
+        </Tip>
     )
 }
 

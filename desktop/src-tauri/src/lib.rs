@@ -235,6 +235,46 @@ mod app_icon {
         }
     }
 
+    /// Return the localized display name for a bundle id using
+    /// `NSFileManager.displayNameAtPath:` (e.g. "com.apple.dt.Xcode" → "Xcode").
+    pub fn display_name(bundle_id: &str) -> Option<String> {
+        use objc::runtime::{Class, Object};
+        use objc::{msg_send, sel, sel_impl};
+        let app_path = find_app_by_bundle_id(bundle_id)?;
+        unsafe {
+            let fm_class = Class::get("NSFileManager")?;
+            let fm: *mut Object = msg_send![fm_class, defaultManager];
+            if fm.is_null() {
+                return None;
+            }
+            let ns_str_class = Class::get("NSString")?;
+            let c_str = std::ffi::CString::new(app_path.as_str()).ok()?;
+            let ns_path: *mut Object =
+                msg_send![ns_str_class, stringWithUTF8String: c_str.as_ptr()];
+            if ns_path.is_null() {
+                return None;
+            }
+            let name_obj: *mut Object = msg_send![fm, displayNameAtPath: ns_path];
+            if name_obj.is_null() {
+                return None;
+            }
+            let utf8: *const std::os::raw::c_char = msg_send![name_obj, UTF8String];
+            if utf8.is_null() {
+                return None;
+            }
+            let raw = std::ffi::CStr::from_ptr(utf8)
+                .to_string_lossy()
+                .into_owned();
+            // Strip the ".app" extension that displayNameAtPath may include.
+            let name = raw.strip_suffix(".app").unwrap_or(&raw).to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some(name)
+            }
+        }
+    }
+
     fn icon_file(app_path: &str) -> Option<String> {
         let plist = format!("{}/Contents/Info.plist", app_path);
         let out = std::process::Command::new("defaults")
@@ -293,6 +333,18 @@ fn get_app_icon(app_name: String) -> Option<String> {
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 fn get_app_icon(_app_name: String) -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn get_app_display_name(app_name: String) -> Option<String> {
+    app_icon::display_name(&app_name)
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn get_app_display_name(_app_name: String) -> Option<String> {
     None
 }
 
@@ -380,7 +432,8 @@ pub fn run() {
             set_autostart,
             check_update,
             install_update,
-            get_app_icon
+            get_app_icon,
+            get_app_display_name
         ])
         .setup(move |app| {
             // Set activation policy FIRST, before any window is created.
