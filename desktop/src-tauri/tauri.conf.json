@@ -1,6 +1,6 @@
 {
     "productName": "KeliKeli",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "identifier": "com.weitanzzz.keli-keli",
     "build": {
         "frontendDist": "../dist",
