@@ -89,21 +89,15 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     Some("Visual Studio Code")
                 }
                 "com.microsoft.edgemac" => Some("Microsoft Edge"),
-                "com.microsoft.teams2" | "com.microsoft.teams" => {
-                    Some("Microsoft Teams")
-                }
+                "com.microsoft.teams2" | "com.microsoft.teams" => Some("Microsoft Teams"),
                 "com.microsoft.Word" => Some("Microsoft Word"),
                 "com.microsoft.Excel" => Some("Microsoft Excel"),
                 "com.microsoft.Powerpoint" => Some("Microsoft PowerPoint"),
                 "com.microsoft.Outlook" => Some("Microsoft Outlook"),
                 "com.microsoft.onenote.mac" => Some("Microsoft OneNote"),
                 // JetBrains
-                "com.jetbrains.intellij" | "com.jetbrains.intellij.ce" => {
-                    Some("IntelliJ IDEA")
-                }
-                "com.jetbrains.pycharm" | "com.jetbrains.pycharm.ce" => {
-                    Some("PyCharm")
-                }
+                "com.jetbrains.intellij" | "com.jetbrains.intellij.ce" => Some("IntelliJ IDEA"),
+                "com.jetbrains.pycharm" | "com.jetbrains.pycharm.ce" => Some("PyCharm"),
                 "com.jetbrains.goland" => Some("GoLand"),
                 "com.jetbrains.CLion" => Some("CLion"),
                 "com.jetbrains.webstorm" => Some("WebStorm"),
