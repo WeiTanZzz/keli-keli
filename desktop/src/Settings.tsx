@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+    type AllTimeCounts,
     type AppClickStat,
     type AppStat,
     api,
@@ -593,7 +594,7 @@ function AppBreakdownChart({
     const periods: { id: AppPeriod; label: string }[] = [
         { id: "day", label: "Today" },
         { id: "week", label: "Week" },
-        { id: "all", label: "All" },
+        { id: "all", label: "90d" },
     ]
 
     return (
@@ -792,10 +793,12 @@ function StatisticsSection({
     stats,
     appStats,
     clickStats,
+    allTimeCounts,
 }: {
     stats: DayStat[]
     appStats: AppStat[]
     clickStats: AppClickStat[]
+    allTimeCounts: AllTimeCounts | null
 }) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = localDateStr()
@@ -889,10 +892,11 @@ function StatisticsSection({
         [dailyTotals],
     )
     const streak = useMemo(() => computeStreak(stats), [stats])
-    const allTimeTotal = useMemo(
-        () => dailyTotals.reduce((sum, d) => sum + d.total, 0),
-        [dailyTotals],
-    )
+    const allTimeTotal = allTimeCounts
+        ? allTimeCounts.keystrokes +
+          allTimeCounts.left_clicks +
+          allTimeCounts.right_clicks
+        : null
 
     return (
         <div className="flex flex-col gap-6">
@@ -973,11 +977,13 @@ function StatisticsSection({
                         <StatChip
                             label="All time"
                             value={
-                                allTimeTotal >= 1_000_000
-                                    ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
-                                    : allTimeTotal >= 1_000
-                                      ? `${(allTimeTotal / 1_000).toFixed(1)}K`
-                                      : allTimeTotal.toLocaleString()
+                                allTimeTotal === null
+                                    ? "—"
+                                    : allTimeTotal >= 1_000_000
+                                      ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
+                                      : allTimeTotal >= 1_000
+                                        ? `${(allTimeTotal / 1_000).toFixed(1)}K`
+                                        : allTimeTotal.toLocaleString()
                             }
                             sub="actions"
                         />
@@ -1271,6 +1277,9 @@ export default function Settings() {
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
     const [clickStats, setClickStats] = useState<AppClickStat[]>([])
+    const [allTimeCounts, setAllTimeCounts] = useState<AllTimeCounts | null>(
+        null,
+    )
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -1350,9 +1359,10 @@ export default function Settings() {
 
         api.getConfig().then(setCfg)
         api.getAutostart().then(setAutostart)
-        api.getStats(90).then(setStats)
+        api.getStats(365).then(setStats)
         api.getAppStats(90).then(setAppStats)
         api.getAppClickStats(90).then(setClickStats)
+        api.getAllTimeCounts().then(setAllTimeCounts)
         api.checkUpdate()
             .then((info) => {
                 if (info.available && info.latest) {
@@ -1470,6 +1480,7 @@ export default function Settings() {
                                 stats={stats}
                                 appStats={appStats}
                                 clickStats={clickStats}
+                                allTimeCounts={allTimeCounts}
                             />
                         )}
                         {active === "general" && cfg && (
