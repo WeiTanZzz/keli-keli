@@ -444,5 +444,4 @@ mod tests {
         assert_eq!(left, 1);
         assert_eq!(right, 1);
     }
-
 }
