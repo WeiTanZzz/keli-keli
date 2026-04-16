@@ -1509,7 +1509,14 @@ export default function Settings() {
                     {showSave && (
                         <>
                             <Separator />
-                            <div className="p-4">
+                            <div className="flex flex-col gap-2 p-4">
+                                {(active === "sync" ||
+                                    active === "websocket") && (
+                                    <p className="text-[11px] text-zinc-400 text-center leading-snug">
+                                        URL and connection settings take effect
+                                        after restart.
+                                    </p>
+                                )}
                                 <Button
                                     size="full"
                                     variant={saved ? "success" : "default"}
