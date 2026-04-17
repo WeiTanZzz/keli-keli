@@ -95,7 +95,11 @@ pub(crate) mod app_icon {
             let s = std::ffi::CStr::from_ptr(utf8)
                 .to_string_lossy()
                 .into_owned();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         }
     }
 
@@ -130,7 +134,11 @@ pub(crate) mod app_icon {
                 .to_string_lossy()
                 .into_owned();
             let name = raw.strip_suffix(".app").unwrap_or(&raw).to_string();
-            if name.is_empty() { None } else { Some(name) }
+            if name.is_empty() {
+                None
+            } else {
+                Some(name)
+            }
         }
     }
 
@@ -161,9 +169,15 @@ pub(crate) mod app_icon {
         let tmp = format!("/tmp/kk-icon-{}.png", safe_name);
         let success = std::process::Command::new("sips")
             .args([
-                "-s", "format", "png", &icon_path,
-                "--out", &tmp,
-                "--resampleHeightWidth", "64", "64",
+                "-s",
+                "format",
+                "png",
+                &icon_path,
+                "--out",
+                &tmp,
+                "--resampleHeightWidth",
+                "64",
+                "64",
             ])
             .output()
             .ok()
@@ -244,8 +258,7 @@ pub(crate) fn make_webview_transparent(win: &tauri::WebviewWindow) {
             }
             let _: () = msg_send![ns_window, setLevel: INDICATOR_WINDOW_LEVEL];
             let existing: usize = msg_send![ns_window, collectionBehavior];
-            let _: () =
-                msg_send![ns_window, setCollectionBehavior: existing | NS_WINDOW_COLLECTION_BEHAVIOR];
+            let _: () = msg_send![ns_window, setCollectionBehavior: existing | NS_WINDOW_COLLECTION_BEHAVIOR];
         }
     }
 }

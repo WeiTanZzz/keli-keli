@@ -60,7 +60,11 @@ pub(crate) fn save_config(
 #[tauri::command]
 pub(crate) fn get_all_time_counts(storage: tauri::State<storage::Storage>) -> AllTimeCounts {
     let (keystrokes, left_clicks, right_clicks) = storage.all_time_counts();
-    AllTimeCounts { keystrokes, left_clicks, right_clicks }
+    AllTimeCounts {
+        keystrokes,
+        left_clicks,
+        right_clicks,
+    }
 }
 
 #[tauri::command]
@@ -73,10 +77,7 @@ pub(crate) fn get_stats(days: usize, storage: tauri::State<storage::Storage>) ->
 }
 
 #[tauri::command]
-pub(crate) fn get_app_stats(
-    days: usize,
-    storage: tauri::State<storage::Storage>,
-) -> Vec<AppStat> {
+pub(crate) fn get_app_stats(days: usize, storage: tauri::State<storage::Storage>) -> Vec<AppStat> {
     storage
         .get_app_stats(days)
         .into_iter()

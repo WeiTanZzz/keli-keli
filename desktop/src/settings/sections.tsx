@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react"
-import {
-    type AllTimeCounts,
-    type AppClickStat,
-    type AppStat,
-    type Config,
-    type DayStat,
+import type {
+    AllTimeCounts,
+    AppClickStat,
+    AppStat,
+    Config,
+    DayStat,
 } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

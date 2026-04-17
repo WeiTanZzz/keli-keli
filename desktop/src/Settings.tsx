@@ -2,7 +2,14 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
 import { useEffect, useState } from "react"
-import { type AllTimeCounts, type AppClickStat, type AppStat, api, type Config, type DayStat } from "@/api"
+import {
+    type AllTimeCounts,
+    type AppClickStat,
+    type AppStat,
+    api,
+    type Config,
+    type DayStat,
+} from "@/api"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -84,7 +91,9 @@ export default function Settings() {
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
     const [clickStats, setClickStats] = useState<AppClickStat[]>([])
-    const [allTimeCounts, setAllTimeCounts] = useState<AllTimeCounts | null>(null)
+    const [allTimeCounts, setAllTimeCounts] = useState<AllTimeCounts | null>(
+        null,
+    )
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -140,9 +149,11 @@ export default function Settings() {
                                 ? {
                                       ...s,
                                       left_clicks:
-                                          s.left_clicks + (button === 0 ? 1 : 0),
+                                          s.left_clicks +
+                                          (button === 0 ? 1 : 0),
                                       right_clicks:
-                                          s.right_clicks + (button === 1 ? 1 : 0),
+                                          s.right_clicks +
+                                          (button === 1 ? 1 : 0),
                                   }
                                 : s,
                         )
@@ -295,7 +306,8 @@ export default function Settings() {
                                         c
                                             ? {
                                                   ...c,
-                                                  flush_interval_secs: Number(v),
+                                                  flush_interval_secs:
+                                                      Number(v),
                                               }
                                             : c,
                                     )

@@ -44,7 +44,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         const LEFT_MOUSE_DOWN: u32 = 1; // kCGEventLeftMouseDown
         const RIGHT_MOUSE_DOWN: u32 = 3; // kCGEventRightMouseDown
         const OTHER_MOUSE_DOWN: u32 = 25; // kCGEventOtherMouseDown
-        // The tap receives these pseudo-types when the system disables it (e.g. timeout).
+                                          // The tap receives these pseudo-types when the system disables it (e.g. timeout).
         const TAP_DISABLED: u32 = 0xFFFFFFFE;
         const TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFFFFFF;
 
