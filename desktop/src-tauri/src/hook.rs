@@ -40,9 +40,17 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         #[allow(non_camel_case_types)]
         type CFIndex = std::os::raw::c_long;
 
-        const KEY_DOWN_MASK: u64 = 1 << 10;
-        // kCGEventLeftMouseDown=1, kCGEventRightMouseDown=3, kCGEventOtherMouseDown=25
-        const MOUSE_DOWN_MASK: u64 = (1 << 1) | (1 << 3) | (1 << 25);
+        const KEY_DOWN: u32 = 10; // kCGEventKeyDown
+        const LEFT_MOUSE_DOWN: u32 = 1; // kCGEventLeftMouseDown
+        const RIGHT_MOUSE_DOWN: u32 = 3; // kCGEventRightMouseDown
+        const OTHER_MOUSE_DOWN: u32 = 25; // kCGEventOtherMouseDown
+                                          // The tap receives these pseudo-types when the system disables it (e.g. timeout).
+        const TAP_DISABLED: u32 = 0xFFFFFFFE;
+        const TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFFFFFF;
+
+        const KEY_DOWN_MASK: u64 = 1 << KEY_DOWN;
+        const MOUSE_DOWN_MASK: u64 =
+            (1 << LEFT_MOUSE_DOWN) | (1 << RIGHT_MOUSE_DOWN) | (1 << OTHER_MOUSE_DOWN);
         const EVENT_MASK: u64 = KEY_DOWN_MASK | MOUSE_DOWN_MASK;
 
         #[link(name = "CoreGraphics", kind = "framework")]
@@ -135,14 +143,14 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             event: CGEventRef,
             _user_info: *mut c_void,
         ) -> CGEventRef {
-            if event_type == 0xFFFFFFFE || event_type == 0xFFFFFFFF {
+            if event_type == TAP_DISABLED || event_type == TAP_DISABLED_BY_TIMEOUT {
                 let tap = TAP_PORT.load(std::sync::atomic::Ordering::Relaxed);
                 if !tap.is_null() {
                     CGEventTapEnable(tap, true);
                 }
                 return event;
             }
-            if event_type == 10 {
+            if event_type == KEY_DOWN {
                 // kCGEventFlagMaskCommand = 0x00100000, kVK_ANSI_Q = 12
                 // Intercept Cmd+Q only when KeliKeli itself is the active app
                 // so we never accidentally swallow Cmd+Q from other apps.
@@ -170,16 +178,16 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     let app = frontmost_app_name();
                     let _ = tx.send(KeyEvent::KeyPress { app });
                 }
-            } else if event_type == 1 || event_type == 3 || event_type == 25 {
+            } else if event_type == LEFT_MOUSE_DOWN
+                || event_type == RIGHT_MOUSE_DOWN
+                || event_type == OTHER_MOUSE_DOWN
+            {
                 if let Some(tx) = SENDER.get() {
                     let app = frontmost_app_name();
-                    // 1=left, 3=right, 25=other/middle
-                    let button = if event_type == 1 {
-                        0
-                    } else if event_type == 3 {
-                        1
-                    } else {
-                        2
+                    let button = match event_type {
+                        LEFT_MOUSE_DOWN => 0,
+                        RIGHT_MOUSE_DOWN => 1,
+                        _ => 2, // OTHER_MOUSE_DOWN
                     };
                     let _ = tx.send(KeyEvent::MouseClick { app, button });
                 }
