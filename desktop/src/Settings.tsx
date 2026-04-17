@@ -1,35 +1,24 @@
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import {
-    type AllTimeCounts,
-    type AppClickStat,
-    type AppStat,
-    api,
-    type Config,
-    type DayStat,
-} from "@/api"
+import { useEffect, useState } from "react"
+import { type AllTimeCounts, type AppClickStat, type AppStat, api, type Config, type DayStat } from "@/api"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { localDateStr } from "./settings/helpers"
 import {
-    AppBreakdownChart,
-    DailyBarChart,
-    Last7DaysChart,
-} from "./settings/charts"
-import { computeStreak, localDateStr } from "./settings/helpers"
+    AboutSection,
+    GeneralSection,
+    StatisticsSection,
+    SyncSection,
+    type UpdateState,
+    WebSocketSection,
+} from "./settings/sections"
+
+// ─── Nav config ───────────────────────────────────────────────────────────────
 
 type NavId = "statistics" | "general" | "sync" | "websocket" | "about"
-
-type UpdateState =
-    | { status: "checking" }
-    | { status: "latest"; version: string }
-    | { status: "available"; current: string; latest: string }
-    | { status: "installing" }
-    | { status: "error"; message: string }
 
 const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "statistics", label: "Statistics", icon: BarChart2 },
@@ -39,508 +28,7 @@ const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "about", label: "About", icon: Info },
 ]
 
-// ─── UI primitives ────────────────────────────────────────────────────────────
-
-function StatChip({
-    label,
-    value,
-    sub,
-}: {
-    label: string
-    value: string
-    sub?: string
-}) {
-    return (
-        <div className="flex flex-col gap-1 px-3 py-3">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none mb-1">
-                {label}
-            </span>
-            <span className="text-xl font-bold text-zinc-800 tabular-nums leading-none">
-                {value}
-            </span>
-            <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
-                {sub ?? ""}
-            </span>
-        </div>
-    )
-}
-
-function FormRow({
-    label,
-    description,
-    children,
-}: {
-    label: string
-    description?: string
-    children: React.ReactNode
-}) {
-    return (
-        <div className="flex items-center justify-between gap-4 py-3 px-4">
-            <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm text-zinc-800">{label}</span>
-                {description && (
-                    <span className="text-xs text-zinc-400">{description}</span>
-                )}
-            </div>
-            {children}
-        </div>
-    )
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="bg-white rounded-xl border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
-            {children}
-        </div>
-    )
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="flex items-center gap-2 mb-1">
-            <span className="w-1 h-3.5 rounded-full bg-indigo-400 shrink-0" />
-            <h2 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">
-                {children}
-            </h2>
-        </div>
-    )
-}
-
-// ─── Sections ─────────────────────────────────────────────────────────────────
-
-function StatisticsSection({
-    stats,
-    appStats,
-    clickStats,
-    allTimeCounts,
-}: {
-    stats: DayStat[]
-    appStats: AppStat[]
-    clickStats: AppClickStat[]
-    allTimeCounts: AllTimeCounts | null
-}) {
-    const [selectedDate, setSelectedDate] = useState<string | null>(null)
-    const today = localDateStr()
-    const yesterday = localDateStr(new Date(Date.now() - 86400000))
-
-    // Daily click totals (left + right) per date
-    const dailyClicks = useMemo(() => {
-        const m = new Map<string, number>()
-        for (const s of clickStats) {
-            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
-        }
-        return m
-    }, [clickStats])
-
-    const todayTotal = useMemo(
-        () =>
-            (stats.find((s) => s.date === today)?.count ?? 0) +
-            (dailyClicks.get(today) ?? 0),
-        [stats, dailyClicks, today],
-    )
-    const yesterdayTotal = useMemo(
-        () =>
-            (stats.find((s) => s.date === yesterday)?.count ?? 0) +
-            (dailyClicks.get(yesterday) ?? 0),
-        [stats, dailyClicks, yesterday],
-    )
-
-    // Hero: keys + clicks for selected date (or today)
-    const isViewingToday = selectedDate === null || selectedDate === today
-    const heroCount = useMemo(() => {
-        if (isViewingToday) return todayTotal
-        const d = selectedDate ?? today
-        return (
-            (stats.find((s) => s.date === d)?.count ?? 0) +
-            (dailyClicks.get(d) ?? 0)
-        )
-    }, [stats, dailyClicks, selectedDate, isViewingToday, todayTotal, today])
-
-    // Trend: compare total activity (keys + clicks)
-    const trendPct = useMemo(() => {
-        if (isViewingToday) {
-            return yesterdayTotal > 0
-                ? Math.round(
-                      ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100,
-                  )
-                : null
-        }
-        return todayTotal > 0
-            ? Math.round(((heroCount - todayTotal) / todayTotal) * 100)
-            : null
-    }, [isViewingToday, todayTotal, yesterdayTotal, heroCount])
-
-    const heroLabel = isViewingToday
-        ? "actions today"
-        : `actions · ${selectedDate}`
-
-    // All-dates total actions (keys + clicks) per date
-    const dailyTotals = useMemo(() => {
-        const allDates = new Set([
-            ...stats.map((s) => s.date),
-            ...dailyClicks.keys(),
-        ])
-        return Array.from(allDates).map((date) => ({
-            date,
-            total:
-                (stats.find((s) => s.date === date)?.count ?? 0) +
-                (dailyClicks.get(date) ?? 0),
-        }))
-    }, [stats, dailyClicks])
-
-    const daysWithData = useMemo(
-        () => dailyTotals.filter((d) => d.total > 0),
-        [dailyTotals],
-    )
-    const avgCount = useMemo(
-        () =>
-            daysWithData.length > 0
-                ? Math.round(
-                      daysWithData.reduce((sum, d) => sum + d.total, 0) /
-                          daysWithData.length,
-                  )
-                : 0,
-        [daysWithData],
-    )
-    const bestDay = useMemo(
-        () =>
-            dailyTotals.reduce((best, d) => (d.total > best.total ? d : best), {
-                date: "",
-                total: 0,
-            }),
-        [dailyTotals],
-    )
-    const streak = useMemo(() => computeStreak(stats), [stats])
-    const allTimeTotal = allTimeCounts
-        ? allTimeCounts.keystrokes +
-          allTimeCounts.left_clicks +
-          allTimeCounts.right_clicks
-        : null
-
-    return (
-        <div className="flex flex-col gap-6">
-            {/* Hero + 30-day chart */}
-            <div className="flex flex-col gap-2">
-                <SectionTitle>Activity</SectionTitle>
-                <Card>
-                    <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
-                        <div className="flex items-baseline justify-between">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                    {heroCount.toLocaleString()}
-                                </span>
-                                {trendPct !== null && (
-                                    <span className="flex items-baseline gap-1">
-                                        <span
-                                            className={cn(
-                                                "text-xs font-medium tabular-nums",
-                                                trendPct >= 0
-                                                    ? "text-emerald-500"
-                                                    : "text-red-400",
-                                            )}
-                                        >
-                                            {trendPct >= 0 ? "+" : ""}
-                                            {trendPct}%
-                                        </span>
-                                        {!isViewingToday && (
-                                            <span className="text-[10px] text-zinc-400">
-                                                vs today
-                                            </span>
-                                        )}
-                                    </span>
-                                )}
-                            </div>
-                            <span className="text-xs text-zinc-400">
-                                {heroLabel}
-                            </span>
-                        </div>
-                        <DailyBarChart
-                            stats={stats}
-                            clickStats={clickStats}
-                            selectedDate={selectedDate}
-                            onSelectDate={setSelectedDate}
-                        />
-                    </div>
-
-                    {/* Stat chips — 4 columns inline */}
-                    <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
-                        <StatChip
-                            label="Daily avg"
-                            value={
-                                avgCount >= 1_000_000
-                                    ? `${(avgCount / 1_000_000).toFixed(1)}M`
-                                    : avgCount >= 1_000
-                                      ? `${(avgCount / 1_000).toFixed(1)}K`
-                                      : avgCount.toLocaleString()
-                            }
-                            sub="actions"
-                        />
-                        <StatChip
-                            label="Best day"
-                            value={
-                                bestDay.total >= 1_000_000
-                                    ? `${(bestDay.total / 1_000_000).toFixed(1)}M`
-                                    : bestDay.total >= 1_000
-                                      ? `${(bestDay.total / 1_000).toFixed(1)}K`
-                                      : bestDay.total.toLocaleString()
-                            }
-                            sub={
-                                bestDay.date ? bestDay.date.slice(5) : undefined
-                            }
-                        />
-                        <StatChip
-                            label="Streak"
-                            value={streak > 0 ? `${streak}d` : "—"}
-                            sub={streak > 0 ? "in a row" : "no streak"}
-                        />
-                        <StatChip
-                            label="All time"
-                            value={
-                                allTimeTotal === null
-                                    ? "—"
-                                    : allTimeTotal >= 1_000_000
-                                      ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
-                                      : allTimeTotal >= 1_000
-                                        ? `${(allTimeTotal / 1_000).toFixed(1)}K`
-                                        : allTimeTotal.toLocaleString()
-                            }
-                            sub="actions"
-                        />
-                    </div>
-                </Card>
-            </div>
-
-            {/* Day-of-week pattern */}
-            <div className="flex flex-col gap-2">
-                <SectionTitle>Last 7 Days</SectionTitle>
-                <Card>
-                    <div className="px-4 py-4">
-                        <Last7DaysChart stats={stats} clickStats={clickStats} />
-                    </div>
-                </Card>
-            </div>
-
-            {/* App breakdown */}
-            <div className="flex flex-col gap-2">
-                <SectionTitle>By App</SectionTitle>
-                <Card>
-                    <div className="px-4 py-4">
-                        <AppBreakdownChart
-                            appStats={appStats}
-                            clickStats={clickStats}
-                        />
-                    </div>
-                </Card>
-            </div>
-        </div>
-    )
-}
-
-function GeneralSection({
-    autostart,
-    cfg,
-    onAutostart,
-    onFlushInterval,
-}: {
-    autostart: boolean
-    cfg: Config
-    onAutostart: (v: boolean) => void
-    onFlushInterval: (v: string) => void
-}) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>General</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Launch at startup"
-                    description="Start KeliKeli when you log in"
-                >
-                    <Switch checked={autostart} onCheckedChange={onAutostart} />
-                </FormRow>
-                <FormRow
-                    label="Flush interval"
-                    description="How often to save data (seconds)"
-                >
-                    <Input
-                        type="number"
-                        value={cfg.flush_interval_secs}
-                        onChange={(e) => onFlushInterval(e.target.value)}
-                        className="w-20"
-                    />
-                </FormRow>
-            </Card>
-        </div>
-    )
-}
-
-function SyncSection({
-    cfg,
-    onUpdate,
-}: {
-    cfg: Config
-    onUpdate: (patch: Partial<Config["sync"]>) => void
-}) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>HTTP Sync</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Send keystroke data to your API"
-                >
-                    <Switch
-                        checked={cfg.sync.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
-                    />
-                </FormRow>
-                {cfg.sync.enabled && (
-                    <>
-                        <FormRow label="API URL">
-                            <Input
-                                value={cfg.sync.api_url}
-                                onChange={(e) =>
-                                    onUpdate({ api_url: e.target.value })
-                                }
-                                placeholder="https://..."
-                            />
-                        </FormRow>
-                        <FormRow label="API Key">
-                            <Input
-                                value={cfg.sync.api_key}
-                                onChange={(e) =>
-                                    onUpdate({ api_key: e.target.value })
-                                }
-                                placeholder="sk-..."
-                                type="password"
-                            />
-                        </FormRow>
-                        <FormRow label="Sync interval (s)">
-                            <Input
-                                type="number"
-                                value={cfg.sync.interval_secs}
-                                onChange={(e) =>
-                                    onUpdate({
-                                        interval_secs: Number(e.target.value),
-                                    })
-                                }
-                            />
-                        </FormRow>
-                    </>
-                )}
-            </Card>
-        </div>
-    )
-}
-
-function WebSocketSection({
-    cfg,
-    onUpdate,
-}: {
-    cfg: Config
-    onUpdate: (patch: Partial<Config["websocket"]>) => void
-}) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>WebSocket</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Stream keystrokes in real time"
-                >
-                    <Switch
-                        checked={cfg.websocket.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
-                    />
-                </FormRow>
-                {cfg.websocket.enabled && (
-                    <>
-                        <FormRow label="WS URL">
-                            <Input
-                                value={cfg.websocket.ws_url}
-                                onChange={(e) =>
-                                    onUpdate({ ws_url: e.target.value })
-                                }
-                                placeholder="wss://..."
-                            />
-                        </FormRow>
-                        <FormRow label="Idle timeout (ms)">
-                            <Input
-                                type="number"
-                                value={cfg.websocket.typing_idle_ms}
-                                onChange={(e) =>
-                                    onUpdate({
-                                        typing_idle_ms: Number(e.target.value),
-                                    })
-                                }
-                            />
-                        </FormRow>
-                    </>
-                )}
-            </Card>
-        </div>
-    )
-}
-
-function AboutSection({
-    update,
-    cfg,
-    onInstall,
-    onAutoUpdate,
-}: {
-    update: UpdateState
-    cfg: Config
-    onInstall: () => void
-    onAutoUpdate: (v: boolean) => void
-}) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>About</SectionTitle>
-            <Card>
-                <FormRow label="Version">
-                    {update.status === "checking" && (
-                        <span className="text-xs text-zinc-400">Checking…</span>
-                    )}
-                    {update.status === "latest" && (
-                        <span className="text-xs text-zinc-400">
-                            v{update.version} · Up to date
-                        </span>
-                    )}
-                    {update.status === "available" && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-zinc-400">
-                                v{update.current}
-                            </span>
-                            <Button size="sm" onClick={onInstall}>
-                                Update to v{update.latest}
-                            </Button>
-                        </div>
-                    )}
-                    {update.status === "installing" && (
-                        <span className="text-xs text-indigo-500">
-                            Installing, restarting shortly…
-                        </span>
-                    )}
-                    {update.status === "error" && (
-                        <span className="text-xs text-red-500">
-                            {update.message}
-                        </span>
-                    )}
-                </FormRow>
-                <FormRow
-                    label="Auto-update"
-                    description="Automatically install updates at launch"
-                >
-                    <Switch
-                        checked={cfg.auto_update}
-                        onCheckedChange={onAutoUpdate}
-                    />
-                </FormRow>
-            </Card>
-        </div>
-    )
-}
-
-// ─── Custom titlebar ──────────────────────────────────────────────────────────
+// ─── TitleBar ─────────────────────────────────────────────────────────────────
 
 function TitleBar() {
     const win = getCurrentWindow()
@@ -596,9 +84,7 @@ export default function Settings() {
     const [stats, setStats] = useState<DayStat[]>([])
     const [appStats, setAppStats] = useState<AppStat[]>([])
     const [clickStats, setClickStats] = useState<AppClickStat[]>([])
-    const [allTimeCounts, setAllTimeCounts] = useState<AllTimeCounts | null>(
-        null,
-    )
+    const [allTimeCounts, setAllTimeCounts] = useState<AllTimeCounts | null>(null)
     const [saved, setSaved] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
@@ -654,11 +140,9 @@ export default function Settings() {
                                 ? {
                                       ...s,
                                       left_clicks:
-                                          s.left_clicks +
-                                          (button === 0 ? 1 : 0),
+                                          s.left_clicks + (button === 0 ? 1 : 0),
                                       right_clicks:
-                                          s.right_clicks +
-                                          (button === 1 ? 1 : 0),
+                                          s.right_clicks + (button === 1 ? 1 : 0),
                                   }
                                 : s,
                         )
@@ -762,7 +246,6 @@ export default function Settings() {
             <div className="flex flex-1 min-h-0">
                 {/* Sidebar */}
                 <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
-                    {/* Nav */}
                     <nav className="flex flex-col gap-0.5 p-2 mt-2">
                         {NAV_ITEMS.map((item) => {
                             const Icon = item.icon
@@ -812,8 +295,7 @@ export default function Settings() {
                                         c
                                             ? {
                                                   ...c,
-                                                  flush_interval_secs:
-                                                      Number(v),
+                                                  flush_interval_secs: Number(v),
                                               }
                                             : c,
                                     )
