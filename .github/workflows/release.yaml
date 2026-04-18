@@ -9,19 +9,20 @@ on:
                 type: string
 
 concurrency:
-    group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+    group: release-${{ github.event.inputs.version }}
     cancel-in-progress: false
 
 permissions:
     contents: write
 
 env:
-    RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+    RELEASE_VERSION: ${{ github.event.inputs.version }}
 
 jobs:
     create_tag:
         name: Create tag
         runs-on: ubuntu-latest
+        if: github.ref_name == 'main'
 
         steps:
             - uses: actions/checkout@v6
@@ -29,18 +30,25 @@ jobs:
                   fetch-depth: 0
                   token: ${{ secrets.RELEASE_PAT }}
 
+            - name: Verify version is not a downgrade
+              env:
+                  GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+              run: |
+                  NEW="${{ env.RELEASE_VERSION }}"
+                  LATEST=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "v0.0.0")
+                  if [ "$LATEST" = "null" ]; then LATEST="v0.0.0"; fi
+                  HIGHEST=$(printf '%s\n' "$LATEST" "$NEW" | sort -V | tail -1)
+                  if [ "$HIGHEST" != "$NEW" ]; then
+                    echo "Error: $NEW is not newer than the latest release $LATEST."
+                    exit 1
+                  fi
+
             - name: Bump version in files
               run: |
                   VERSION="${RELEASE_VERSION#v}"
-                  # desktop/package.json
                   sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" desktop/package.json
-                  # desktop/src-tauri/tauri.conf.json
                   sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" desktop/src-tauri/tauri.conf.json
-                  # desktop/src-tauri/Cargo.toml
                   sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" desktop/src-tauri/Cargo.toml
-                  # desktop/src-tauri/Cargo.lock — only the [[package]] entry for "keli-keli"
-                  # Matches the exact line `name = "keli-keli"`, then replaces the very next
-                  # line (which Cargo.lock guarantees is `version = "..."`).
                   sed -i '/^name = "keli-keli"$/{n; s/^version = "[^"]*"/version = "'"$VERSION"'"/}' desktop/src-tauri/Cargo.lock
 
             - name: Commit version bump
