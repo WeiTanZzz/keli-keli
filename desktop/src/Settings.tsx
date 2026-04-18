@@ -343,7 +343,8 @@ export default function Settings() {
                             <div className="flex flex-col gap-2 p-4">
                                 {restartBanner && (
                                     <p className="text-[11px] text-amber-500 text-center leading-snug">
-                                        Restart required to apply connection changes.
+                                        Restart required to apply connection
+                                        changes.
                                     </p>
                                 )}
                                 <Button

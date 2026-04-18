@@ -299,8 +299,15 @@ export function ConnectionsSection({
     onUpdateWs: (patch: Partial<Config["websocket"]>) => void
 }) {
     const handleExport = () => {
-        const data = { stats, appStats, clickStats, exportedAt: new Date().toISOString() }
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+        const data = {
+            stats,
+            appStats,
+            clickStats,
+            exportedAt: new Date().toISOString(),
+        }
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+            type: "application/json",
+        })
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
@@ -320,7 +327,9 @@ export function ConnectionsSection({
                     >
                         <Switch
                             checked={cfg.sync.enabled}
-                            onCheckedChange={(v) => onUpdateSync({ enabled: v })}
+                            onCheckedChange={(v) =>
+                                onUpdateSync({ enabled: v })
+                            }
                         />
                     </FormRow>
                     {cfg.sync.enabled && (
@@ -329,7 +338,9 @@ export function ConnectionsSection({
                                 <Input
                                     value={cfg.sync.api_url}
                                     onChange={(e) =>
-                                        onUpdateSync({ api_url: e.target.value })
+                                        onUpdateSync({
+                                            api_url: e.target.value,
+                                        })
                                     }
                                     placeholder="https://..."
                                 />
@@ -338,7 +349,9 @@ export function ConnectionsSection({
                                 <Input
                                     value={cfg.sync.api_key}
                                     onChange={(e) =>
-                                        onUpdateSync({ api_key: e.target.value })
+                                        onUpdateSync({
+                                            api_key: e.target.value,
+                                        })
                                     }
                                     placeholder="sk-..."
                                     type="password"
@@ -350,7 +363,9 @@ export function ConnectionsSection({
                                     value={cfg.sync.interval_secs}
                                     onChange={(e) =>
                                         onUpdateSync({
-                                            interval_secs: Number(e.target.value),
+                                            interval_secs: Number(
+                                                e.target.value,
+                                            ),
                                         })
                                     }
                                 />
@@ -389,7 +404,9 @@ export function ConnectionsSection({
                                     value={cfg.websocket.typing_idle_ms}
                                     onChange={(e) =>
                                         onUpdateWs({
-                                            typing_idle_ms: Number(e.target.value),
+                                            typing_idle_ms: Number(
+                                                e.target.value,
+                                            ),
                                         })
                                     }
                                 />
@@ -406,7 +423,11 @@ export function ConnectionsSection({
                         label="Export data"
                         description="Download all your stats as JSON"
                     >
-                        <Button size="sm" variant="outline" onClick={handleExport}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleExport}
+                        >
                             Export
                         </Button>
                     </FormRow>
