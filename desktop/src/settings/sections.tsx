@@ -281,114 +281,137 @@ export function GeneralSection({
     )
 }
 
-// ─── SyncSection ──────────────────────────────────────────────────────────────
+// ─── ConnectionsSection ───────────────────────────────────────────────────────
 
-export function SyncSection({
+export function ConnectionsSection({
     cfg,
-    onUpdate,
+    stats,
+    appStats,
+    clickStats,
+    onUpdateSync,
+    onUpdateWs,
 }: {
     cfg: Config
-    onUpdate: (patch: Partial<Config["sync"]>) => void
+    stats: DayStat[]
+    appStats: AppStat[]
+    clickStats: AppClickStat[]
+    onUpdateSync: (patch: Partial<Config["sync"]>) => void
+    onUpdateWs: (patch: Partial<Config["websocket"]>) => void
 }) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>HTTP Sync</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Send keystroke data to your API"
-                >
-                    <Switch
-                        checked={cfg.sync.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
-                    />
-                </FormRow>
-                {cfg.sync.enabled && (
-                    <>
-                        <FormRow label="API URL">
-                            <Input
-                                value={cfg.sync.api_url}
-                                onChange={(e) =>
-                                    onUpdate({ api_url: e.target.value })
-                                }
-                                placeholder="https://..."
-                            />
-                        </FormRow>
-                        <FormRow label="API Key">
-                            <Input
-                                value={cfg.sync.api_key}
-                                onChange={(e) =>
-                                    onUpdate({ api_key: e.target.value })
-                                }
-                                placeholder="sk-..."
-                                type="password"
-                            />
-                        </FormRow>
-                        <FormRow label="Sync interval (s)">
-                            <Input
-                                type="number"
-                                value={cfg.sync.interval_secs}
-                                onChange={(e) =>
-                                    onUpdate({
-                                        interval_secs: Number(e.target.value),
-                                    })
-                                }
-                            />
-                        </FormRow>
-                    </>
-                )}
-            </Card>
-        </div>
-    )
-}
+    const handleExport = () => {
+        const data = { stats, appStats, clickStats, exportedAt: new Date().toISOString() }
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `kelikeli-export-${new Date().toISOString().slice(0, 10)}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+    }
 
-// ─── WebSocketSection ─────────────────────────────────────────────────────────
-
-export function WebSocketSection({
-    cfg,
-    onUpdate,
-}: {
-    cfg: Config
-    onUpdate: (patch: Partial<Config["websocket"]>) => void
-}) {
     return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>WebSocket</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Stream keystrokes in real time"
-                >
-                    <Switch
-                        checked={cfg.websocket.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
-                    />
-                </FormRow>
-                {cfg.websocket.enabled && (
-                    <>
-                        <FormRow label="WS URL">
-                            <Input
-                                value={cfg.websocket.ws_url}
-                                onChange={(e) =>
-                                    onUpdate({ ws_url: e.target.value })
-                                }
-                                placeholder="wss://..."
-                            />
-                        </FormRow>
-                        <FormRow label="Idle timeout (ms)">
-                            <Input
-                                type="number"
-                                value={cfg.websocket.typing_idle_ms}
-                                onChange={(e) =>
-                                    onUpdate({
-                                        typing_idle_ms: Number(e.target.value),
-                                    })
-                                }
-                            />
-                        </FormRow>
-                    </>
-                )}
-            </Card>
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
+                <SectionTitle>HTTP Sync</SectionTitle>
+                <Card>
+                    <FormRow
+                        label="Enabled"
+                        description="Send keystroke data to your API"
+                    >
+                        <Switch
+                            checked={cfg.sync.enabled}
+                            onCheckedChange={(v) => onUpdateSync({ enabled: v })}
+                        />
+                    </FormRow>
+                    {cfg.sync.enabled && (
+                        <>
+                            <FormRow label="API URL">
+                                <Input
+                                    value={cfg.sync.api_url}
+                                    onChange={(e) =>
+                                        onUpdateSync({ api_url: e.target.value })
+                                    }
+                                    placeholder="https://..."
+                                />
+                            </FormRow>
+                            <FormRow label="API Key">
+                                <Input
+                                    value={cfg.sync.api_key}
+                                    onChange={(e) =>
+                                        onUpdateSync({ api_key: e.target.value })
+                                    }
+                                    placeholder="sk-..."
+                                    type="password"
+                                />
+                            </FormRow>
+                            <FormRow label="Sync interval (s)">
+                                <Input
+                                    type="number"
+                                    value={cfg.sync.interval_secs}
+                                    onChange={(e) =>
+                                        onUpdateSync({
+                                            interval_secs: Number(e.target.value),
+                                        })
+                                    }
+                                />
+                            </FormRow>
+                        </>
+                    )}
+                </Card>
+            </div>
+
+            <div className="flex flex-col gap-4">
+                <SectionTitle>WebSocket</SectionTitle>
+                <Card>
+                    <FormRow
+                        label="Enabled"
+                        description="Stream keystrokes in real time"
+                    >
+                        <Switch
+                            checked={cfg.websocket.enabled}
+                            onCheckedChange={(v) => onUpdateWs({ enabled: v })}
+                        />
+                    </FormRow>
+                    {cfg.websocket.enabled && (
+                        <>
+                            <FormRow label="WS URL">
+                                <Input
+                                    value={cfg.websocket.ws_url}
+                                    onChange={(e) =>
+                                        onUpdateWs({ ws_url: e.target.value })
+                                    }
+                                    placeholder="wss://..."
+                                />
+                            </FormRow>
+                            <FormRow label="Idle timeout (ms)">
+                                <Input
+                                    type="number"
+                                    value={cfg.websocket.typing_idle_ms}
+                                    onChange={(e) =>
+                                        onUpdateWs({
+                                            typing_idle_ms: Number(e.target.value),
+                                        })
+                                    }
+                                />
+                            </FormRow>
+                        </>
+                    )}
+                </Card>
+            </div>
+
+            <div className="flex flex-col gap-4">
+                <SectionTitle>Export</SectionTitle>
+                <Card>
+                    <FormRow
+                        label="Export data"
+                        description="Download all your stats as JSON"
+                    >
+                        <Button size="sm" variant="outline" onClick={handleExport}>
+                            Export
+                        </Button>
+                    </FormRow>
+                </Card>
+            </div>
         </div>
     )
 }
