@@ -51,6 +51,7 @@ export default function App() {
             onMouseDown={(e) => {
                 if (e.button === 0) {
                     e.preventDefault()
+                    setPlusOnes([])
                     getCurrentWindow().startDragging()
                 }
             }}
