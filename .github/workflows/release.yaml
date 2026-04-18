@@ -22,6 +22,7 @@ jobs:
     create_tag:
         name: Create tag
         runs-on: ubuntu-latest
+        if: github.ref_name == 'main'
 
         steps:
             - uses: actions/checkout@v6
@@ -29,14 +30,10 @@ jobs:
                   fetch-depth: 0
                   token: ${{ secrets.RELEASE_PAT }}
 
-            - name: Verify branch and version
+            - name: Verify version is not a downgrade
               env:
                   GH_TOKEN: ${{ secrets.RELEASE_PAT }}
               run: |
-                  if [ "${{ github.ref_name }}" != "main" ]; then
-                    echo "Error: release must be triggered from main branch."
-                    exit 1
-                  fi
                   NEW="${{ env.RELEASE_VERSION }}"
                   LATEST=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "v0.0.0")
                   if [ "$LATEST" = "null" ]; then LATEST="v0.0.0"; fi
