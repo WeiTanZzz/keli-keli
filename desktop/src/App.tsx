@@ -9,6 +9,12 @@ export default function App() {
     const idRef = useRef(0)
 
     useEffect(() => {
+        const handleBlur = () => setPlusOnes([])
+        window.addEventListener("blur", handleBlur)
+        return () => window.removeEventListener("blur", handleBlur)
+    }, [])
+
+    useEffect(() => {
         const unlisten = listen<{ count: number }>("keystroke", () => {
             const id = ++idRef.current
             setPlusOnes((prev) => [...prev, { id, type: "key" }])
