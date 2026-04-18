@@ -48,6 +48,9 @@ export const api = {
     saveConfig: (newCfg: Config): Promise<void> =>
         invoke("save_config", { newCfg }),
 
+    saveConfigAndRestart: (newCfg: Config): Promise<void> =>
+        invoke("save_config_and_restart", { newCfg }),
+
     getAutostart: (): Promise<boolean> => invoke<boolean>("get_autostart"),
 
     setAutostart: (enabled: boolean): Promise<void> =>

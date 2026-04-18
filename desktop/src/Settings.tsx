@@ -93,7 +93,7 @@ export default function Settings() {
         null,
     )
     const [saved, setSaved] = useState(false)
-    const [restartBanner, setRestartBanner] = useState(false)
+    const [showRestartDialog, setShowRestartDialog] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
 
@@ -233,13 +233,19 @@ export default function Settings() {
 
     const handleSave = async () => {
         if (!cfg) return
+        if (active === "connections") {
+            setShowRestartDialog(true)
+            return
+        }
         await api.saveConfig(cfg)
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
-        if (active === "connections") {
-            setRestartBanner(true)
-            setTimeout(() => setRestartBanner(false), 4000)
-        }
+    }
+
+    const handleSaveAndRestart = async () => {
+        if (!cfg) return
+        setShowRestartDialog(false)
+        await api.saveConfigAndRestart(cfg)
     }
 
     const setSync = (patch: Partial<Config["sync"]>) =>
@@ -340,13 +346,7 @@ export default function Settings() {
                     {showSave && (
                         <>
                             <Separator />
-                            <div className="flex flex-col gap-2 p-4">
-                                {restartBanner && (
-                                    <p className="text-[11px] text-amber-500 text-center leading-snug">
-                                        Restart required to apply connection
-                                        changes.
-                                    </p>
-                                )}
+                            <div className="p-4">
                                 <Button
                                     size="full"
                                     variant={saved ? "success" : "default"}
@@ -359,6 +359,39 @@ export default function Settings() {
                     )}
                 </main>
             </div>
+
+            {showRestartDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                    <div className="bg-white rounded-xl shadow-xl w-72 p-5 flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-semibold text-zinc-800">
+                                Restart required
+                            </span>
+                            <span className="text-xs text-zinc-500 leading-relaxed">
+                                Connection settings take effect after a restart.
+                                Save and reopen now?
+                            </span>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setShowRestartDialog(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="flex-1"
+                                onClick={handleSaveAndRestart}
+                            >
+                                Save & Reopen
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

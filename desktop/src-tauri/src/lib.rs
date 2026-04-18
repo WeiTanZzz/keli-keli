@@ -168,11 +168,14 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(cfg_arc)
         .manage(storage.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
+            commands::save_config_and_restart,
             commands::get_all_time_counts,
             commands::get_stats,
             commands::get_app_stats,
