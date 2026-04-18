@@ -1,74 +1,23 @@
 name: Release
 
 on:
-    workflow_dispatch:
-        inputs:
-            version:
-                description: "Release version (e.g. v1.0.0)"
-                required: true
-                type: string
+    push:
+        tags:
+            - "v*"
 
 concurrency:
-    group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+    group: release-${{ github.ref_name }}
     cancel-in-progress: false
 
 permissions:
     contents: write
 
 env:
-    RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+    RELEASE_VERSION: ${{ github.ref_name }}
 
 jobs:
-    create_tag:
-        name: Create tag
-        runs-on: ubuntu-latest
-
-        steps:
-            - uses: actions/checkout@v6
-              with:
-                  fetch-depth: 0
-                  token: ${{ secrets.RELEASE_PAT }}
-
-            - name: Bump version in files
-              run: |
-                  VERSION="${RELEASE_VERSION#v}"
-                  # desktop/package.json
-                  sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" desktop/package.json
-                  # desktop/src-tauri/tauri.conf.json
-                  sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" desktop/src-tauri/tauri.conf.json
-                  # desktop/src-tauri/Cargo.toml
-                  sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" desktop/src-tauri/Cargo.toml
-                  # desktop/src-tauri/Cargo.lock — only the [[package]] entry for "keli-keli"
-                  # Matches the exact line `name = "keli-keli"`, then replaces the very next
-                  # line (which Cargo.lock guarantees is `version = "..."`).
-                  sed -i '/^name = "keli-keli"$/{n; s/^version = "[^"]*"/version = "'"$VERSION"'"/}' desktop/src-tauri/Cargo.lock
-
-            - name: Commit version bump
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock
-                  if git diff --cached --quiet; then
-                    echo "No version changes to commit."
-                  else
-                    git commit -m "chore: bump version to ${RELEASE_VERSION}"
-                    git push origin HEAD:main
-                  fi
-
-            - name: Create tag if missing
-              run: |
-                  TAG="${RELEASE_VERSION}"
-                  if git rev-parse "$TAG" >/dev/null 2>&1; then
-                    echo "Tag $TAG already exists, skip creating."
-                  else
-                    git tag "$TAG"
-                    git push origin "$TAG"
-                  fi
-
     release:
         name: release (${{ matrix.os }}, ${{ matrix.target }})
-        needs: [create_tag]
-        if: needs.create_tag.result == 'success'
         strategy:
             fail-fast: false
             matrix:
@@ -81,7 +30,15 @@ jobs:
         steps:
             - uses: actions/checkout@v6
               with:
-                  ref: ${{ env.RELEASE_VERSION }}
+                  fetch-depth: 0
+
+            - name: Verify tag is on main
+              run: |
+                  git fetch origin main
+                  if ! git merge-base --is-ancestor ${{ github.sha }} origin/main; then
+                    echo "Error: tag must point to a commit on main branch."
+                    exit 1
+                  fi
 
             - uses: pnpm/action-setup@v6
               with:
