@@ -281,35 +281,58 @@ export function GeneralSection({
     )
 }
 
-// ─── SyncSection ──────────────────────────────────────────────────────────────
+// ─── ConnectionsSection ───────────────────────────────────────────────────────
 
-export function SyncSection({
+export function ConnectionsSection({
     cfg,
-    onUpdate,
+    stats,
+    appStats,
+    clickStats,
+    onUpdateSync,
+    onUpdateWs,
 }: {
     cfg: Config
-    onUpdate: (patch: Partial<Config["sync"]>) => void
+    stats: DayStat[]
+    appStats: AppStat[]
+    clickStats: AppClickStat[]
+    onUpdateSync: (patch: Partial<Config["sync"]>) => void
+    onUpdateWs: (patch: Partial<Config["websocket"]>) => void
 }) {
+    const handleExport = async () => {
+        const { save } = await import("@tauri-apps/plugin-dialog")
+        const { writeTextFile } = await import("@tauri-apps/plugin-fs")
+        const path = await save({
+            defaultPath: `kelikeli-export-${new Date().toISOString().slice(0, 10)}.json`,
+            filters: [{ name: "JSON", extensions: ["json"] }],
+        })
+        if (!path) return
+        const data = {
+            stats,
+            appStats,
+            clickStats,
+            exportedAt: new Date().toISOString(),
+        }
+        await writeTextFile(path, JSON.stringify(data, null, 2))
+    }
+
     return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>HTTP Sync</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Send keystroke data to your API"
-                >
+        <div className="flex flex-col gap-6">
+            {/* HTTP Sync */}
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <SectionTitle>HTTP Sync</SectionTitle>
                     <Switch
                         checked={cfg.sync.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
+                        onCheckedChange={(v) => onUpdateSync({ enabled: v })}
                     />
-                </FormRow>
+                </div>
                 {cfg.sync.enabled && (
-                    <>
+                    <Card>
                         <FormRow label="API URL">
                             <Input
                                 value={cfg.sync.api_url}
                                 onChange={(e) =>
-                                    onUpdate({ api_url: e.target.value })
+                                    onUpdateSync({ api_url: e.target.value })
                                 }
                                 placeholder="https://..."
                             />
@@ -318,7 +341,7 @@ export function SyncSection({
                             <Input
                                 value={cfg.sync.api_key}
                                 onChange={(e) =>
-                                    onUpdate({ api_key: e.target.value })
+                                    onUpdateSync({ api_key: e.target.value })
                                 }
                                 placeholder="sk-..."
                                 type="password"
@@ -329,48 +352,32 @@ export function SyncSection({
                                 type="number"
                                 value={cfg.sync.interval_secs}
                                 onChange={(e) =>
-                                    onUpdate({
+                                    onUpdateSync({
                                         interval_secs: Number(e.target.value),
                                     })
                                 }
                             />
                         </FormRow>
-                    </>
+                    </Card>
                 )}
-            </Card>
-        </div>
-    )
-}
+            </div>
 
-// ─── WebSocketSection ─────────────────────────────────────────────────────────
-
-export function WebSocketSection({
-    cfg,
-    onUpdate,
-}: {
-    cfg: Config
-    onUpdate: (patch: Partial<Config["websocket"]>) => void
-}) {
-    return (
-        <div className="flex flex-col gap-4">
-            <SectionTitle>WebSocket</SectionTitle>
-            <Card>
-                <FormRow
-                    label="Enabled"
-                    description="Stream keystrokes in real time"
-                >
+            {/* WebSocket */}
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <SectionTitle>WebSocket</SectionTitle>
                     <Switch
                         checked={cfg.websocket.enabled}
-                        onCheckedChange={(v) => onUpdate({ enabled: v })}
+                        onCheckedChange={(v) => onUpdateWs({ enabled: v })}
                     />
-                </FormRow>
+                </div>
                 {cfg.websocket.enabled && (
-                    <>
+                    <Card>
                         <FormRow label="WS URL">
                             <Input
                                 value={cfg.websocket.ws_url}
                                 onChange={(e) =>
-                                    onUpdate({ ws_url: e.target.value })
+                                    onUpdateWs({ ws_url: e.target.value })
                                 }
                                 placeholder="wss://..."
                             />
@@ -380,15 +387,34 @@ export function WebSocketSection({
                                 type="number"
                                 value={cfg.websocket.typing_idle_ms}
                                 onChange={(e) =>
-                                    onUpdate({
+                                    onUpdateWs({
                                         typing_idle_ms: Number(e.target.value),
                                     })
                                 }
                             />
                         </FormRow>
-                    </>
+                    </Card>
                 )}
-            </Card>
+            </div>
+
+            {/* Export */}
+            <div className="flex flex-col gap-3">
+                <SectionTitle>Export</SectionTitle>
+                <Card>
+                    <FormRow
+                        label="Export data"
+                        description="Download all your stats as JSON"
+                    >
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleExport}
+                        >
+                            Export
+                        </Button>
+                    </FormRow>
+                </Card>
+            </div>
         </div>
     )
 }

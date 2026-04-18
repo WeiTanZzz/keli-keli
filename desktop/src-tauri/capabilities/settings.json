@@ -11,6 +11,9 @@
         "core:window:allow-start-dragging",
         "core:window:allow-close",
         "core:window:allow-minimize",
-        "updater:default"
+        "updater:default",
+        "dialog:allow-save",
+        "fs:allow-write-text-file",
+        "fs:allow-app-write"
     ]
 }

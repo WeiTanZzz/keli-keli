@@ -55,6 +55,20 @@ pub(crate) fn save_config(
     *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg;
 }
 
+#[tauri::command]
+pub(crate) fn save_config_and_restart(
+    new_cfg: config::Config,
+    state: tauri::State<Arc<Mutex<config::Config>>>,
+    storage: tauri::State<'_, crate::storage::Storage>,
+    app: AppHandle,
+) {
+    config::save(&new_cfg);
+    *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg;
+    storage.save();
+    crate::SKIP_QUIT_DIALOG.store(true, std::sync::atomic::Ordering::Relaxed);
+    app.restart();
+}
+
 // ── Stats commands ────────────────────────────────────────────────────────────
 
 #[tauri::command]

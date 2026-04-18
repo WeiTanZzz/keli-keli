@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { BarChart2, Globe, Info, Settings2, Zap } from "lucide-react"
+import { BarChart2, Cable, Info, Settings2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
     type AllTimeCounts,
@@ -16,22 +16,20 @@ import { cn } from "@/lib/utils"
 import { localDateStr } from "./settings/helpers"
 import {
     AboutSection,
+    ConnectionsSection,
     GeneralSection,
     StatisticsSection,
-    SyncSection,
     type UpdateState,
-    WebSocketSection,
 } from "./settings/sections"
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type NavId = "statistics" | "general" | "sync" | "websocket" | "about"
+type NavId = "statistics" | "general" | "connections" | "about"
 
 const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "statistics", label: "Statistics", icon: BarChart2 },
     { id: "general", label: "General", icon: Settings2 },
-    { id: "sync", label: "HTTP Sync", icon: Globe },
-    { id: "websocket", label: "WebSocket", icon: Zap },
+    { id: "connections", label: "Connections", icon: Cable },
     { id: "about", label: "About", icon: Info },
 ]
 
@@ -95,6 +93,7 @@ export default function Settings() {
         null,
     )
     const [saved, setSaved] = useState(false)
+    const [showRestartDialog, setShowRestartDialog] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
 
@@ -234,9 +233,19 @@ export default function Settings() {
 
     const handleSave = async () => {
         if (!cfg) return
+        if (active === "connections") {
+            setShowRestartDialog(true)
+            return
+        }
         await api.saveConfig(cfg)
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
+    }
+
+    const handleSaveAndRestart = async () => {
+        if (!cfg) return
+        setShowRestartDialog(false)
+        await api.saveConfigAndRestart(cfg)
     }
 
     const setSync = (patch: Partial<Config["sync"]>) =>
@@ -248,7 +257,7 @@ export default function Settings() {
 
     if (!cfg) return null
 
-    const showSave = active !== "statistics" && active !== "about"
+    const showSave = active === "general" || active === "connections"
 
     return (
         <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden rounded-xl">
@@ -314,11 +323,15 @@ export default function Settings() {
                                 }
                             />
                         )}
-                        {active === "sync" && cfg && (
-                            <SyncSection cfg={cfg} onUpdate={setSync} />
-                        )}
-                        {active === "websocket" && cfg && (
-                            <WebSocketSection cfg={cfg} onUpdate={setWs} />
+                        {active === "connections" && cfg && (
+                            <ConnectionsSection
+                                cfg={cfg}
+                                stats={stats}
+                                appStats={appStats}
+                                clickStats={clickStats}
+                                onUpdateSync={setSync}
+                                onUpdateWs={setWs}
+                            />
                         )}
                         {active === "about" && cfg && (
                             <AboutSection
@@ -333,14 +346,7 @@ export default function Settings() {
                     {showSave && (
                         <>
                             <Separator />
-                            <div className="flex flex-col gap-2 p-4">
-                                {(active === "sync" ||
-                                    active === "websocket") && (
-                                    <p className="text-[11px] text-zinc-400 text-center leading-snug">
-                                        URL and connection settings take effect
-                                        after restart.
-                                    </p>
-                                )}
+                            <div className="p-4">
                                 <Button
                                     size="full"
                                     variant={saved ? "success" : "default"}
@@ -353,6 +359,39 @@ export default function Settings() {
                     )}
                 </main>
             </div>
+
+            {showRestartDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                    <div className="bg-white rounded-xl shadow-xl w-72 p-5 flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-semibold text-zinc-800">
+                                Restart required
+                            </span>
+                            <span className="text-xs text-zinc-500 leading-relaxed">
+                                Connection settings take effect after a restart.
+                                Save and reopen now?
+                            </span>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setShowRestartDialog(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="flex-1"
+                                onClick={handleSaveAndRestart}
+                            >
+                                Save & Reopen
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
