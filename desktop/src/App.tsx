@@ -1,12 +1,52 @@
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useRef, useState } from "react"
+import { api, type Config } from "@/api"
 
 type PlusOneItem = { id: number; type: "key" | "left" | "right" | "middle" }
+
+const DEFAULT_INDICATOR: Config["indicator"] = {
+    icon_type: "emoji",
+    icon_value: "⌨️",
+    badge_keystroke: "+1",
+    badge_left_click: "+1",
+    badge_right_click: "+1",
+}
+
+// Module-level icon cache keyed by app bundle id
+const appIconCache = new Map<string, string | null>()
 
 export default function App() {
     const [plusOnes, setPlusOnes] = useState<PlusOneItem[]>([])
     const idRef = useRef(0)
+    const [indicator, setIndicator] = useState(DEFAULT_INDICATOR)
+    const [currentApp, setCurrentApp] = useState<string>("")
+    const [activeAppIcon, setActiveAppIcon] = useState<string | null>(null)
+
+    useEffect(() => {
+        api.getConfig().then((cfg) => setIndicator(cfg.indicator))
+    }, [])
+
+    useEffect(() => {
+        const unlisten = listen<Config>("config_changed", (e) => {
+            setIndicator(e.payload.indicator)
+        })
+        return () => { unlisten.then((f) => f()).catch(() => {}) }
+    }, [])
+
+    // Resolve active app icon whenever currentApp changes
+    useEffect(() => {
+        if (indicator.icon_type !== "active_app" || !currentApp) return
+        if (appIconCache.has(currentApp)) {
+            const cached = appIconCache.get(currentApp)!
+            setActiveAppIcon(cached ? `data:image/png;base64,${cached}` : null)
+            return
+        }
+        api.getAppIcon(currentApp).then((b64) => {
+            appIconCache.set(currentApp, b64)
+            setActiveAppIcon(b64 ? `data:image/png;base64,${b64}` : null)
+        })
+    }, [currentApp, indicator.icon_type])
 
     useEffect(() => {
         const handleBlur = () => setPlusOnes([])
@@ -15,7 +55,8 @@ export default function App() {
     }, [])
 
     useEffect(() => {
-        const unlisten = listen<{ count: number }>("keystroke", () => {
+        const unlisten = listen<{ count: number; app: string }>("keystroke", (e) => {
+            if (e.payload.app) setCurrentApp(e.payload.app)
             const id = ++idRef.current
             setPlusOnes((prev) => [...prev, { id, type: "key" }])
             setTimeout(() => {
@@ -26,6 +67,7 @@ export default function App() {
         const unlistenClick = listen<{ app: string; button: number }>(
             "click",
             (e) => {
+                if (e.payload.app) setCurrentApp(e.payload.app)
                 const id = ++idRef.current
                 const button = e.payload.button
                 const type =
@@ -42,6 +84,61 @@ export default function App() {
             unlistenClick.then((f) => f()).catch(() => {})
         }
     }, [])
+
+    const renderIcon = () => {
+        if (indicator.icon_type === "active_app") {
+            if (activeAppIcon) {
+                return (
+                    <img
+                        src={activeAppIcon}
+                        alt=""
+                        style={{
+                            width: 32,
+                            height: 32,
+                            pointerEvents: "none",
+                            objectFit: "contain",
+                            filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
+                        }}
+                    />
+                )
+            }
+            // Fallback: letter avatar while loading or no icon available
+            const letter = currentApp ? currentApp.split(".").pop()?.charAt(0).toUpperCase() ?? "?" : "?"
+            return (
+                <div
+                    style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: "rgba(100,100,100,0.6)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        pointerEvents: "none",
+                        filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
+                    }}
+                >
+                    {letter}
+                </div>
+            )
+        }
+
+        return (
+            <span
+                style={{
+                    fontSize: 32,
+                    lineHeight: 1,
+                    pointerEvents: "none",
+                    filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
+                }}
+            >
+                {indicator.icon_value || "⌨️"}
+            </span>
+        )
+    }
 
     return (
         <div
@@ -62,25 +159,24 @@ export default function App() {
                 }
             }}
         >
-            <span
-                style={{
-                    fontSize: 32,
-                    lineHeight: 1,
-                    pointerEvents: "none",
-                    filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
-                }}
-            >
-                ⌨️
-            </span>
+            {renderIcon()}
 
-            {plusOnes.map((p) => (
-                <span
-                    key={p.id}
-                    className={`plus-one ${p.type !== "key" ? "plus-one-click" : ""}`}
-                >
-                    +1
-                </span>
-            ))}
+            {plusOnes.map((p) => {
+                const badgeText =
+                    p.type === "key"
+                        ? indicator.badge_keystroke || "+1"
+                        : p.type === "left"
+                          ? indicator.badge_left_click || "+1"
+                          : indicator.badge_right_click || "+1"
+                return (
+                    <span
+                        key={p.id}
+                        className={`plus-one ${p.type !== "key" ? "plus-one-click" : ""}`}
+                    >
+                        {badgeText}
+                    </span>
+                )
+            })}
         </div>
     )
 }
