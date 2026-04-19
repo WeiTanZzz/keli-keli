@@ -66,6 +66,7 @@ impl Default for Config {
                 ws_url: String::new(),
                 typing_idle_ms: 2000,
             },
+            indicator: IndicatorConfig::default(),
         }
     }
 }
