@@ -75,6 +75,7 @@ impl Default for Config {
                 typing_idle_ms: 2000,
             },
             indicator: IndicatorConfig::default(),
+            indicator_position: None,
         }
     }
 }
