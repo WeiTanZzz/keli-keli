@@ -1,6 +1,6 @@
 use crate::{config, storage};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 // ── Response types ────────────────────────────────────────────────────────────
 
