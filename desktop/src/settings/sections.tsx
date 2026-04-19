@@ -292,16 +292,12 @@ export function GeneralSection({
     cfg,
     onAutostart,
     onFlushInterval,
-    onIndicator,
 }: {
     autostart: boolean
     cfg: Config
     onAutostart: (v: boolean) => void
     onFlushInterval: (v: string) => void
-    onIndicator: (patch: Partial<IndicatorConfig>) => void
 }) {
-    const ind = cfg.indicator
-
     return (
         <div className="flex flex-col gap-4">
             <SectionTitle>General</SectionTitle>
@@ -324,7 +320,23 @@ export function GeneralSection({
                     />
                 </FormRow>
             </Card>
+        </div>
+    )
+}
 
+// ─── IndicatorSection ─────────────────────────────────────────────────────────
+
+export function IndicatorSection({
+    cfg,
+    onIndicator,
+}: {
+    cfg: Config
+    onIndicator: (patch: Partial<IndicatorConfig>) => void
+}) {
+    const ind = cfg.indicator
+
+    return (
+        <div className="flex flex-col gap-4">
             <SectionTitle>Indicator</SectionTitle>
             <Card>
                 {/* Icon type toggle */}
@@ -386,20 +398,22 @@ export function GeneralSection({
                         </div>
                     </FormRow>
                 )}
+            </Card>
 
-                {/* Badge values — one per input type */}
+            <SectionTitle>Badges</SectionTitle>
+            <Card>
                 <BadgeRow
-                    label="Keystroke badge"
+                    label="Keystroke"
                     value={ind.badge_keystroke}
                     onChange={(v) => onIndicator({ badge_keystroke: v })}
                 />
                 <BadgeRow
-                    label="Left click badge"
+                    label="Left click"
                     value={ind.badge_left_click}
                     onChange={(v) => onIndicator({ badge_left_click: v })}
                 />
                 <BadgeRow
-                    label="Right click badge"
+                    label="Right click"
                     value={ind.badge_right_click}
                     onChange={(v) => onIndicator({ badge_right_click: v })}
                 />
