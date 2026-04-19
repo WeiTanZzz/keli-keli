@@ -256,6 +256,7 @@ pub(crate) fn make_webview_transparent(win: &tauri::WebviewWindow) {
                 let _: () = msg_send![view, setOpaque: NO];
                 let _: () = msg_send![view, setBackgroundColor: clear];
             }
+            let _: () = msg_send![ns_window, setHasShadow: NO];
             let _: () = msg_send![ns_window, setLevel: INDICATOR_WINDOW_LEVEL];
             let existing: usize = msg_send![ns_window, collectionBehavior];
             let _: () = msg_send![ns_window, setCollectionBehavior: existing | NS_WINDOW_COLLECTION_BEHAVIOR];
