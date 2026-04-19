@@ -140,6 +140,22 @@ async fn key_loop(
     }
 }
 
+fn save_indicator_position(app: &AppHandle) {
+    let Some(cfg_state) =
+        app.try_state::<Arc<Mutex<config::Config>>>()
+    else {
+        return;
+    };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(pos) = win.outer_position() {
+        let mut cfg = cfg_state.lock().unwrap_or_else(|e| e.into_inner());
+        cfg.indicator_position = Some(config::IndicatorPosition { x: pos.x, y: pos.y });
+        config::save(&cfg);
+    }
+}
+
 pub fn run() {
     let cfg = config::load();
     let storage = storage::Storage::load();
@@ -268,12 +284,26 @@ pub fn run() {
             ));
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+        .on_window_event({
+            let debounce: Arc<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>> =
+                Arc::new(Mutex::new(None));
+            move |window, event| match event {
+                tauri::WindowEvent::Moved(_) if window.label() == "main" => {
+                    let app = window.app_handle().clone();
+                    let mut handle = debounce.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(h) = handle.take() {
+                        h.abort();
+                    }
+                    *handle = Some(tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        save_indicator_position(&app);
+                    }));
+                }
+                tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                     window.hide().ok();
                     api.prevent_close();
                 }
+                _ => {}
             }
         })
         .build(tauri::generate_context!())
@@ -293,19 +323,7 @@ pub fn run() {
                 if let Some(storage) = app_handle.try_state::<storage::Storage>() {
                     storage.save();
                 }
-                if let Some(cfg_state) =
-                    app_handle.try_state::<std::sync::Arc<std::sync::Mutex<config::Config>>>()
-                {
-                    if let Some(win) = app_handle.get_webview_window("main") {
-                        if let Ok(pos) = win.outer_position() {
-                            let mut cfg =
-                                cfg_state.lock().unwrap_or_else(|e| e.into_inner());
-                            cfg.indicator_position =
-                                Some(config::IndicatorPosition { x: pos.x, y: pos.y });
-                            config::save(&cfg);
-                        }
-                    }
-                }
+                save_indicator_position(app_handle);
             }
         });
 }
