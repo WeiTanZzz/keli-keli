@@ -254,6 +254,10 @@ export default function Settings() {
         setCfg((c) =>
             c ? { ...c, websocket: { ...c.websocket, ...patch } } : c,
         )
+    const setIndicator = (patch: Partial<Config["indicator"]>) =>
+        setCfg((c) =>
+            c ? { ...c, indicator: { ...c.indicator, ...patch } } : c,
+        )
 
     if (!cfg) return null
 
@@ -321,6 +325,7 @@ export default function Settings() {
                                             : c,
                                     )
                                 }
+                                onIndicator={setIndicator}
                             />
                         )}
                         {active === "connections" && cfg && (

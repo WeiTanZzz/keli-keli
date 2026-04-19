@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core"
 
+export interface IndicatorConfig {
+    icon_type: "emoji" | "active_app"
+    icon_value: string
+    badge_keystroke: string
+    badge_left_click: string
+    badge_right_click: string
+}
+
 export interface Config {
     flush_interval_secs: number
     auto_update: boolean
@@ -10,6 +18,7 @@ export interface Config {
         interval_secs: number
     }
     websocket: { enabled: boolean; ws_url: string; typing_idle_ms: number }
+    indicator: IndicatorConfig
 }
 
 export interface DayStat {
