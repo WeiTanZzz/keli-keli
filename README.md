@@ -1,102 +1,60 @@
-# keli-keli
+# KeliKeli
 
-A macOS menu bar app that tracks keystrokes and mouse clicks in real time.
+**Your keystrokes, counted. Your habits, revealed.**
 
 ![keli-keli](https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f)
 
+A tiny macOS app that floats a live +1 on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
 
-## Features
+## Download
 
-- Floating keyboard indicator on screen
-- Tray menu showing today's keystroke count
-- Tracks key presses, left clicks, and right clicks per app
-- Local data persistence (JSON)
-- Optional HTTP sync — POST activity counts to your own API
-- Optional WebSocket — stream typing and click events in real time
-- Auto-update: check for new releases at launch
+[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
-## Requirements
+> First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
-- macOS 12+
-- [Input Monitoring](x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent) permission
+---
 
-## Structure
+## What you get
 
-```
-desktop/
-├── src/                  # React frontend
-│   ├── App.tsx           # Floating indicator UI
-│   ├── Settings.tsx      # Settings window (statistics, sync, WebSocket, about)
-│   └── main.tsx
-└── src-tauri/
-    └── src/
-        ├── lib.rs        # App setup, key/sync/WebSocket loops, tray, Tauri commands
-        ├── hook.rs       # CGEventTap keyboard and mouse hook
-        ├── storage.rs    # Daily activity persistence (JSON)
-        └── config.rs     # User config (sync, WebSocket)
-```
+**Live feedback** — A floating +1 animation appears on every key press and click. Feel your activity in real time.
 
-## Dev
+**Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
 
-```sh
-cd desktop && pnpm tauri dev
-```
+**30-day history** — Open Settings to see your activity over the past month: keystrokes, clicks, streaks, daily averages, and your all-time count.
 
-## Config
+**Per-app breakdown** — See exactly which apps are getting the most of your time and energy.
 
-Stored at `~/Library/Application Support/keli-keli/config.toml`.
+**Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
-```toml
-flush_interval_secs = 60
+---
 
-[sync]
-enabled = false
-api_url = ""
-api_key = ""
-interval_secs = 60
+## Sync & integrations
 
-[websocket]
-enabled = false
-ws_url = ""
-typing_idle_ms = 2000
-```
+KeliKeli can push your activity to any HTTP endpoint or WebSocket server you control.
 
-> **Note:** Changes to WebSocket URL, Sync URL, and the enable/disable toggles
-> require an app restart to take effect. Flush interval and typing idle timeout
-> update immediately after saving.
+Configure in **Settings → Connections**. Hit **Save & Reopen** after making changes.
 
 ### HTTP Sync
 
-When enabled, POSTs to `api_url` every `interval_secs` seconds with header
-`Authorization: Bearer <api_key>`:
+Posts a summary to your API on a schedule:
 
 ```json
 {
   "synced_at": "2026-04-10T14:30:00+01:00",
-  "totals": {
-    "keystrokes": 12345,
-    "left_clicks": 678,
-    "right_clicks": 90
-  },
+  "totals": { "keystrokes": 12345, "left_clicks": 678, "right_clicks": 90 },
   "delta": {
-    "keystrokes": 42,
-    "left_clicks": 7,
-    "right_clicks": 1,
-    "period_secs": 60,
+    "keystrokes": 42, "left_clicks": 7, "right_clicks": 1, "period_secs": 60,
     "apps": [
-      { "app": "Xcode",  "keystrokes": 38, "left_clicks": 5, "right_clicks": 0 },
-      { "app": "Safari", "keystrokes": 4,  "left_clicks": 2, "right_clicks": 1 }
+      { "app": "Xcode", "keystrokes": 38, "left_clicks": 5, "right_clicks": 0 },
+      { "app": "Safari", "keystrokes": 4, "left_clicks": 2, "right_clicks": 1 }
     ]
   }
 }
 ```
 
-`totals` is the all-time cumulative count; `delta` is the activity since the
-previous sync interval.
-
 ### WebSocket
 
-When enabled, connects to `ws_url` and streams JSON messages:
+Streams individual events as they happen:
 
 ```json
 { "type": "keystroke", "app": "Xcode" }
@@ -106,63 +64,48 @@ When enabled, connects to `ws_url` and streams JSON messages:
 { "type": "typing_stop" }
 ```
 
-Reconnects automatically on disconnect with exponential back-off (up to 5 min).
+Reconnects automatically with exponential back-off (up to 5 min).
 
-## Security & Privacy
+---
 
-### Privacy
+## Privacy
 
-keli-keli counts keystrokes and mouse clicks — it does **not** record which
-keys are pressed, log any text input, or transmit keystroke content anywhere.
-The hook intercepts key and mouse events solely to increment counters.
+KeliKeli counts — it does not record. It never captures which keys you press, logs text input, or sends keystroke content anywhere. The system hook increments a counter and nothing more.
 
-That said, any app with Input Monitoring permission has the *technical
-capability* to read keystrokes. If you have concerns:
+That said, any app granted Input Monitoring has the *technical capability* to read keystrokes. If that matters to you:
 
-- Review the source code before running.
-- If you downloaded a pre-built binary, verify its integrity (check the SHA256
-  hash against the release page) before installing.
-- Grant Input Monitoring permission only to apps you trust.
+- Read the source before you run it.
+- Verify the file hash against the release page before installing a pre-built binary.
+- Only grant Input Monitoring to apps you trust.
 
 ### macOS Gatekeeper warnings
 
-keli-keli is signed with a self-signed certificate and is not notarized by
-Apple. macOS Gatekeeper therefore quarantines the download and may show one of
-two warnings:
+KeliKeli is signed but not notarized by Apple, so Gatekeeper will quarantine the download. You may see:
 
-**When opening the DMG:**
-> "Apple could not verify 'KeliKeli_x.x.x_aarch64.dmg' is free of malware…"
+> *"Apple could not verify … is free of malware"* — on the DMG  
+> *"KeliKeli is damaged and can't be opened"* — after installing
 
-**After installing the app:**
-> "KeliKeli is damaged and can't be opened."
+Both are the same issue: a quarantine flag macOS adds to internet downloads. Remove it with:
 
-Both are caused by the same thing: macOS attaches a `com.apple.quarantine`
-extended attribute to every file downloaded from the internet. Because the app
-is not notarized, Gatekeeper refuses to lift the quarantine automatically.
-
-**Fix — remove the quarantine flag:**
-
-On the DMG before mounting:
 ```sh
+# On the DMG before mounting
 xattr -dr com.apple.quarantine ~/Downloads/KeliKeli_x.x.x_aarch64.dmg
-```
 
-Or on the installed app:
-```sh
+# Or on the installed app
 xattr -dr com.apple.quarantine /Applications/KeliKeli.app
 ```
 
-Alternatively, right-click the file in Finder → **Open** → click **Open** in
-the dialog to grant a one-time exception.
+Alternatively: right-click → **Open** → **Open** to grant a one-time exception.
 
-Only do this if you downloaded the app from the
-[official GitHub Releases](../../releases) page and have verified the file
-hash matches the one listed there.
+Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
-### General tips
+---
 
-- Always download from the [official GitHub Releases](../../releases) page and
-  check that the file hash matches what is listed there.
-- Keep macOS up to date so that system-level security mitigations are current.
-- If you no longer use the app, revoke Input Monitoring permission in
-  **System Settings → Privacy & Security → Input Monitoring**.
+## Settings reference
+
+| Setting | Description |
+|---|---|
+| Launch at startup | Auto-start when you log in |
+| Flush interval | How often activity is written to disk (seconds) |
+| HTTP Sync | POST totals to your API on an interval |
+| WebSocket | Stream live events to a server |
