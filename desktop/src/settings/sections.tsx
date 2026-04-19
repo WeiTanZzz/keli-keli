@@ -245,7 +245,7 @@ export function StatisticsSection({
 
 // ─── GeneralSection ───────────────────────────────────────────────────────────
 
-const ICON_PRESETS = ["⌨️", "🖱️", "⚡", "🔥", "✨", "💻", "🎮", "⚙️", "🚀", "💡"]
+const ICON_PRESETS = ["⌨️", "🖱️", "💻", "⚡", "🔥"]
 
 const BADGE_PRESETS: Record<"keystroke" | "left_click" | "right_click", string[]> = {
     keystroke:   ["⌨️", "✍️", "💬", "📝", "🔤"],
