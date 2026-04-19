@@ -226,12 +226,21 @@ pub fn run() {
             };
 
             if let Ok(Some(monitor)) = win.primary_monitor() {
+                let all_monitors = win.available_monitors().unwrap_or_default();
                 let pos = saved_pos
                     .map(|p| tauri::PhysicalPosition { x: p.x, y: p.y })
                     .filter(|p| {
-                        // Discard saved position if it falls outside the primary screen.
-                        let s = monitor.size();
-                        p.x >= 0 && p.y >= 0 && p.x < s.width as i32 && p.y < s.height as i32
+                        // Keep saved position only if it lies within at least one
+                        // connected monitor (handles multi-monitor setups and
+                        // discards stale positions when a display is disconnected).
+                        all_monitors.iter().any(|m| {
+                            let o = m.position();
+                            let s = m.size();
+                            p.x >= o.x
+                                && p.y >= o.y
+                                && p.x < o.x + s.width as i32
+                                && p.y < o.y + s.height as i32
+                        })
                     })
                     .unwrap_or_else(|| default_pos(&monitor));
                 win.set_position(pos).ok();
