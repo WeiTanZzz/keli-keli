@@ -263,6 +263,85 @@ pub(crate) fn make_webview_transparent(win: &tauri::WebviewWindow) {
     }
 }
 
+/// Start a native window drag without relying on [NSApp currentEvent].
+///
+/// Tauri's built-in startDragging() calls performWindowDragWithEvent with
+/// [NSApp currentEvent]. When keys are pressed rapidly alongside a click,
+/// the IPC arrives after a key event has become currentEvent — key events
+/// have locationInWindow=(0,0), so the drag anchor snaps to the window's
+/// bottom-left corner and the window jumps by a fixed offset.
+///
+/// This command instead reads [NSEvent mouseLocation] (always the real
+/// pointer position) and builds a synthetic left-mouse-down event at the
+/// correct window-relative location before handing off to the OS drag loop.
+pub(crate) fn start_drag_window(win: &tauri::WebviewWindow) {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct NSPoint {
+        x: f64,
+        y: f64,
+    }
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct NSSize {
+        width: f64,
+        height: f64,
+    }
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct NSRect {
+        origin: NSPoint,
+        size: NSSize,
+    }
+
+    let Ok(ptr) = win.ns_window() else { return };
+    unsafe {
+        let ns_window = ptr as *mut Object;
+        let Some(event_cls) = Class::get("NSEvent") else {
+            return;
+        };
+
+        // Real mouse position in screen coordinates (macOS bottom-left origin).
+        let mouse: NSPoint = msg_send![event_cls, mouseLocation];
+
+        // Window frame in screen coordinates.
+        let frame: NSRect = msg_send![ns_window, frame];
+
+        // Convert to window-local coordinates.
+        let loc = NSPoint {
+            x: mouse.x - frame.origin.x,
+            y: mouse.y - frame.origin.y,
+        };
+
+        let win_num: isize = msg_send![ns_window, windowNumber];
+
+        let proc_info: *mut Object =
+            msg_send![Class::get("NSProcessInfo").unwrap(), processInfo];
+        let timestamp: f64 = msg_send![proc_info, systemUptime];
+
+        // NSEventTypeLeftMouseDown = 1
+        let synthetic: *mut Object = msg_send![
+            event_cls,
+            mouseEventWithType: 1usize
+            location: loc
+            modifierFlags: 0usize
+            timestamp: timestamp
+            windowNumber: win_num
+            context: std::ptr::null::<Object>() as *mut Object
+            eventNumber: 0isize
+            clickCount: 1isize
+            pressure: 1.0f32
+        ];
+
+        if !synthetic.is_null() {
+            let _: () = msg_send![ns_window, performWindowDragWithEvent: synthetic];
+        }
+    }
+}
+
 /// Make the settings window background transparent and give it a 12-pt
 /// corner radius using the NSWindow contentView's CALayer.
 /// Does NOT change window level or collection behavior (unlike the indicator).

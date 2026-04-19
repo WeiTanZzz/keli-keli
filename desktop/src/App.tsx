@@ -1,5 +1,5 @@
+import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { LogicalPosition } from "@tauri-apps/api/dpi"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useRef, useState } from "react"
 import { api, type Config } from "@/api"
@@ -21,9 +21,6 @@ export default function App() {
     const [plusOnes, setPlusOnes] = useState<PlusOneItem[]>([])
     const idRef = useRef(0)
     const [indicator, setIndicator] = useState(DEFAULT_INDICATOR)
-    const dragging = useRef(false)
-    const dragOrigin = useRef({ mouseX: 0, mouseY: 0, winX: 0, winY: 0 })
-    const cachedWinPos = useRef({ x: 0, y: 0 })
     const [currentApp, setCurrentApp] = useState<string>("")
     const [activeAppIcon, setActiveAppIcon] = useState<string | null>(null)
 
@@ -60,43 +57,6 @@ export default function App() {
         return () => window.removeEventListener("blur", handleBlur)
     }, [])
 
-    useEffect(() => {
-        const win = getCurrentWindow()
-        const dpr = () => window.devicePixelRatio || 1
-
-        win.outerPosition().then((pos) => {
-            cachedWinPos.current = { x: pos.x / dpr(), y: pos.y / dpr() }
-        })
-
-        const unlistenMoved = win.onMoved((e) => {
-            cachedWinPos.current = { x: e.payload.x / dpr(), y: e.payload.y / dpr() }
-        })
-
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!dragging.current) return
-            const dx = e.screenX - dragOrigin.current.mouseX
-            const dy = e.screenY - dragOrigin.current.mouseY
-            void win.setPosition(
-                new LogicalPosition(
-                    dragOrigin.current.winX + dx,
-                    dragOrigin.current.winY + dy,
-                ),
-            )
-        }
-
-        const handleMouseUp = () => {
-            dragging.current = false
-        }
-
-        document.addEventListener("mousemove", handleMouseMove)
-        document.addEventListener("mouseup", handleMouseUp)
-
-        return () => {
-            document.removeEventListener("mousemove", handleMouseMove)
-            document.removeEventListener("mouseup", handleMouseUp)
-            unlistenMoved.then((f) => f()).catch(() => {})
-        }
-    }, [])
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => e.preventDefault()
@@ -210,13 +170,7 @@ export default function App() {
                 if (e.button !== 0) return
                 e.preventDefault()
                 setPlusOnes([])
-                dragOrigin.current = {
-                    mouseX: e.screenX,
-                    mouseY: e.screenY,
-                    winX: cachedWinPos.current.x,
-                    winY: cachedWinPos.current.y,
-                }
-                dragging.current = true
+                void invoke("start_window_drag")
             }}
         >
             {renderIcon()}
