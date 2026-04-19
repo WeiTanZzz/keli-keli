@@ -39,6 +39,12 @@ impl Default for IndicatorConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub flush_interval_secs: u64,
     /// Automatically install updates when one is found at launch.
@@ -48,6 +54,8 @@ pub struct Config {
     pub websocket: WebSocketConfig,
     #[serde(default)]
     pub indicator: IndicatorConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indicator_position: Option<IndicatorPosition>,
 }
 
 impl Default for Config {

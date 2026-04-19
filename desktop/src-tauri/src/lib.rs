@@ -210,14 +210,31 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             macos::make_webview_transparent(&win);
 
-            if let Ok(Some(monitor)) = win.primary_monitor() {
+            let saved_pos = cfg_for_key_loop
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .indicator_position
+                .clone();
+
+            let default_pos = |monitor: &tauri::Monitor| {
                 let screen = monitor.size();
                 let win_size = win.outer_size().unwrap_or_default();
-                win.set_position(tauri::PhysicalPosition {
+                tauri::PhysicalPosition {
                     x: (screen.width as i32) - (win_size.width as i32) - 24,
                     y: (screen.height as f32 * 0.8) as i32,
-                })
-                .ok();
+                }
+            };
+
+            if let Ok(Some(monitor)) = win.primary_monitor() {
+                let pos = saved_pos
+                    .map(|p| tauri::PhysicalPosition { x: p.x, y: p.y })
+                    .filter(|p| {
+                        // Discard saved position if it falls outside the primary screen.
+                        let s = monitor.size();
+                        p.x >= 0 && p.y >= 0 && p.x < s.width as i32 && p.y < s.height as i32
+                    })
+                    .unwrap_or_else(|| default_pos(&monitor));
+                win.set_position(pos).ok();
             }
 
             tray::setup_tray(app.handle())?;
@@ -266,6 +283,19 @@ pub fn run() {
                 }
                 if let Some(storage) = app_handle.try_state::<storage::Storage>() {
                     storage.save();
+                }
+                if let Some(cfg_state) =
+                    app_handle.try_state::<std::sync::Arc<std::sync::Mutex<config::Config>>>()
+                {
+                    if let Some(win) = app_handle.get_webview_window("main") {
+                        if let Ok(pos) = win.outer_position() {
+                            let mut cfg =
+                                cfg_state.lock().unwrap_or_else(|e| e.into_inner());
+                            cfg.indicator_position =
+                                Some(config::IndicatorPosition { x: pos.x, y: pos.y });
+                            config::save(&cfg);
+                        }
+                    }
                 }
             }
         });
