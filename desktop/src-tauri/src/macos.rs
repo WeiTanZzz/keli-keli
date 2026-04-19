@@ -318,8 +318,7 @@ pub(crate) fn start_drag_window(win: &tauri::WebviewWindow) {
 
         let win_num: isize = msg_send![ns_window, windowNumber];
 
-        let proc_info: *mut Object =
-            msg_send![Class::get("NSProcessInfo").unwrap(), processInfo];
+        let proc_info: *mut Object = msg_send![Class::get("NSProcessInfo").unwrap(), processInfo];
         let timestamp: f64 = msg_send![proc_info, systemUptime];
 
         // NSEventTypeLeftMouseDown = 1

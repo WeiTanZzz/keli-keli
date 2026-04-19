@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useRef, useState } from "react"
 import { api, type Config } from "@/api"
 
@@ -56,7 +55,6 @@ export default function App() {
         window.addEventListener("blur", handleBlur)
         return () => window.removeEventListener("blur", handleBlur)
     }, [])
-
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => e.preventDefault()
