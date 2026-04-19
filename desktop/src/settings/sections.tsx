@@ -328,7 +328,10 @@ export function GeneralSection({
             <SectionTitle>Indicator</SectionTitle>
             <Card>
                 {/* Icon type toggle */}
-                <FormRow label="Icon" description="What to show in the floating window">
+                <FormRow
+                    label="Icon"
+                    description="What to show in the floating window"
+                >
                     <div className="flex gap-1">
                         {(["emoji", "active_app"] as const).map((t) => (
                             <button
@@ -349,7 +352,10 @@ export function GeneralSection({
 
                 {/* Emoji picker — only shown when icon_type = "emoji" */}
                 {ind.icon_type === "emoji" && (
-                    <FormRow label="Emoji" description="Type any emoji or pick a preset">
+                    <FormRow
+                        label="Emoji"
+                        description="Type any emoji or pick a preset"
+                    >
                         <div className="flex flex-col gap-2 items-end">
                             <Input
                                 value={ind.icon_value}

@@ -31,14 +31,16 @@ export default function App() {
         const unlisten = listen<Config>("config_changed", (e) => {
             setIndicator(e.payload.indicator)
         })
-        return () => { unlisten.then((f) => f()).catch(() => {}) }
+        return () => {
+            unlisten.then((f) => f()).catch(() => {})
+        }
     }, [])
 
     // Resolve active app icon whenever currentApp changes
     useEffect(() => {
         if (indicator.icon_type !== "active_app" || !currentApp) return
         if (appIconCache.has(currentApp)) {
-            const cached = appIconCache.get(currentApp)!
+            const cached = appIconCache.get(currentApp)
             setActiveAppIcon(cached ? `data:image/png;base64,${cached}` : null)
             return
         }
@@ -55,14 +57,17 @@ export default function App() {
     }, [])
 
     useEffect(() => {
-        const unlisten = listen<{ count: number; app: string }>("keystroke", (e) => {
-            if (e.payload.app) setCurrentApp(e.payload.app)
-            const id = ++idRef.current
-            setPlusOnes((prev) => [...prev, { id, type: "key" }])
-            setTimeout(() => {
-                setPlusOnes((prev) => prev.filter((p) => p.id !== id))
-            }, 750)
-        })
+        const unlisten = listen<{ count: number; app: string }>(
+            "keystroke",
+            (e) => {
+                if (e.payload.app) setCurrentApp(e.payload.app)
+                const id = ++idRef.current
+                setPlusOnes((prev) => [...prev, { id, type: "key" }])
+                setTimeout(() => {
+                    setPlusOnes((prev) => prev.filter((p) => p.id !== id))
+                }, 750)
+            },
+        )
 
         const unlistenClick = listen<{ app: string; button: number }>(
             "click",
@@ -103,7 +108,9 @@ export default function App() {
                 )
             }
             // Fallback: letter avatar while loading or no icon available
-            const letter = currentApp ? currentApp.split(".").pop()?.charAt(0).toUpperCase() ?? "?" : "?"
+            const letter = currentApp
+                ? (currentApp.split(".").pop()?.charAt(0).toUpperCase() ?? "?")
+                : "?"
             return (
                 <div
                     style={{
