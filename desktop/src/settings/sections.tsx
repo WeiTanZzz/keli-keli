@@ -5,6 +5,7 @@ import type {
     AppStat,
     Config,
     DayStat,
+    IndicatorConfig,
 } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -244,6 +245,58 @@ export function StatisticsSection({
 
 // ─── GeneralSection ───────────────────────────────────────────────────────────
 
+const ICON_PRESETS = ["⌨️", "🖱️", "💻", "⚡", "🔥"]
+
+const BADGE_PRESETS: Record<
+    "keystroke" | "left_click" | "right_click",
+    string[]
+> = {
+    keystroke: ["⌨️", "✍️", "💬", "📝", "🔤"],
+    left_click: ["👈", "⬅️", "👆", "🤏", "🖱️"],
+    right_click: ["👉", "➡️", "⚙️", "📋", "☰"],
+}
+
+function BadgeRow({
+    label,
+    value,
+    presets,
+    onChange,
+}: {
+    label: string
+    value: string
+    presets: string[]
+    onChange: (v: string) => void
+}) {
+    return (
+        <FormRow label={label}>
+            <div className="flex flex-col gap-2 items-end">
+                <Input
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-20 text-center"
+                    maxLength={8}
+                />
+                <div className="flex gap-1 flex-wrap justify-end">
+                    {presets.map((preset) => (
+                        <button
+                            key={preset}
+                            type="button"
+                            onClick={() => onChange(preset)}
+                            className={`px-2 h-7 rounded text-xs font-medium transition-colors ${
+                                value === preset
+                                    ? "bg-indigo-100 ring-1 ring-indigo-400 text-indigo-700"
+                                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                            }`}
+                        >
+                            {preset}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </FormRow>
+    )
+}
+
 export function GeneralSection({
     autostart,
     cfg,
@@ -276,6 +329,107 @@ export function GeneralSection({
                         className="w-20"
                     />
                 </FormRow>
+            </Card>
+        </div>
+    )
+}
+
+// ─── IndicatorSection ─────────────────────────────────────────────────────────
+
+export function IndicatorSection({
+    cfg,
+    onIndicator,
+}: {
+    cfg: Config
+    onIndicator: (patch: Partial<IndicatorConfig>) => void
+}) {
+    const ind = cfg.indicator
+
+    return (
+        <div className="flex flex-col gap-4">
+            <SectionTitle>Indicator</SectionTitle>
+            <Card>
+                {/* Icon type toggle */}
+                <FormRow
+                    label="Icon"
+                    description="What to show in the floating window"
+                >
+                    <div className="flex gap-1">
+                        {(["emoji", "active_app"] as const).map((t) => (
+                            <button
+                                key={t}
+                                type="button"
+                                onClick={() => onIndicator({ icon_type: t })}
+                                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                    ind.icon_type === t
+                                        ? "bg-indigo-500 text-white"
+                                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                                }`}
+                            >
+                                {t === "emoji" ? "Emoji" : "Active App"}
+                            </button>
+                        ))}
+                    </div>
+                </FormRow>
+
+                {/* Emoji picker — only shown when icon_type = "emoji" */}
+                {ind.icon_type === "emoji" && (
+                    <FormRow
+                        label="Emoji"
+                        description="Type any emoji or pick a preset"
+                    >
+                        <div className="flex flex-col gap-2 items-end">
+                            <Input
+                                value={ind.icon_value}
+                                onChange={(e) =>
+                                    onIndicator({ icon_value: e.target.value })
+                                }
+                                className="w-20 text-center text-lg"
+                                maxLength={8}
+                            />
+                            <div className="flex gap-1 flex-wrap justify-end">
+                                {ICON_PRESETS.map((emoji) => (
+                                    <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() =>
+                                            onIndicator({ icon_value: emoji })
+                                        }
+                                        className={`w-7 h-7 rounded text-base flex items-center justify-center transition-colors ${
+                                            ind.icon_value === emoji
+                                                ? "bg-indigo-100 ring-1 ring-indigo-400"
+                                                : "hover:bg-zinc-100"
+                                        }`}
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </FormRow>
+                )}
+            </Card>
+
+            <SectionTitle>Badges</SectionTitle>
+            <Card>
+                <BadgeRow
+                    label="Keystroke"
+                    value={ind.badge_keystroke}
+                    presets={BADGE_PRESETS.keystroke}
+                    onChange={(v) => onIndicator({ badge_keystroke: v })}
+                />
+                <BadgeRow
+                    label="Left click"
+                    value={ind.badge_left_click}
+                    presets={BADGE_PRESETS.left_click}
+                    onChange={(v) => onIndicator({ badge_left_click: v })}
+                />
+                <BadgeRow
+                    label="Right click"
+                    value={ind.badge_right_click}
+                    presets={BADGE_PRESETS.right_click}
+                    onChange={(v) => onIndicator({ badge_right_click: v })}
+                />
             </Card>
         </div>
     )

@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { BarChart2, Cable, Info, Settings2 } from "lucide-react"
+import { BarChart2, Cable, Info, Keyboard, Settings2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
     type AllTimeCounts,
@@ -18,17 +18,19 @@ import {
     AboutSection,
     ConnectionsSection,
     GeneralSection,
+    IndicatorSection,
     StatisticsSection,
     type UpdateState,
 } from "./settings/sections"
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type NavId = "statistics" | "general" | "connections" | "about"
+type NavId = "statistics" | "general" | "indicator" | "connections" | "about"
 
 const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
     { id: "statistics", label: "Statistics", icon: BarChart2 },
     { id: "general", label: "General", icon: Settings2 },
+    { id: "indicator", label: "Indicator", icon: Keyboard },
     { id: "connections", label: "Connections", icon: Cable },
     { id: "about", label: "About", icon: Info },
 ]
@@ -254,10 +256,17 @@ export default function Settings() {
         setCfg((c) =>
             c ? { ...c, websocket: { ...c.websocket, ...patch } } : c,
         )
+    const setIndicator = (patch: Partial<Config["indicator"]>) =>
+        setCfg((c) =>
+            c ? { ...c, indicator: { ...c.indicator, ...patch } } : c,
+        )
 
     if (!cfg) return null
 
-    const showSave = active === "general" || active === "connections"
+    const showSave =
+        active === "general" ||
+        active === "indicator" ||
+        active === "connections"
 
     return (
         <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden rounded-xl">
@@ -321,6 +330,12 @@ export default function Settings() {
                                             : c,
                                     )
                                 }
+                            />
+                        )}
+                        {active === "indicator" && cfg && (
+                            <IndicatorSection
+                                cfg={cfg}
+                                onIndicator={setIndicator}
                             />
                         )}
                         {active === "connections" && cfg && (

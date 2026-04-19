@@ -1,6 +1,6 @@
 use crate::{config, storage};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 // ── Response types ────────────────────────────────────────────────────────────
 
@@ -50,9 +50,11 @@ pub(crate) fn get_config(state: tauri::State<Arc<Mutex<config::Config>>>) -> con
 pub(crate) fn save_config(
     new_cfg: config::Config,
     state: tauri::State<Arc<Mutex<config::Config>>>,
+    app: AppHandle,
 ) {
     config::save(&new_cfg);
-    *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg;
+    *state.lock().unwrap_or_else(|e| e.into_inner()) = new_cfg.clone();
+    let _ = app.emit("config_changed", new_cfg);
 }
 
 #[tauri::command]

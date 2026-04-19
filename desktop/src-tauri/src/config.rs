@@ -18,6 +18,27 @@ pub struct WebSocketConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorConfig {
+    pub icon_type: String,  // "emoji" | "active_app"
+    pub icon_value: String, // emoji string, used when icon_type = "emoji"
+    pub badge_keystroke: String,
+    pub badge_left_click: String,
+    pub badge_right_click: String,
+}
+
+impl Default for IndicatorConfig {
+    fn default() -> Self {
+        IndicatorConfig {
+            icon_type: "emoji".to_string(),
+            icon_value: "⌨️".to_string(),
+            badge_keystroke: "+1".to_string(),
+            badge_left_click: "+1".to_string(),
+            badge_right_click: "+1".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub flush_interval_secs: u64,
     /// Automatically install updates when one is found at launch.
@@ -25,6 +46,8 @@ pub struct Config {
     pub auto_update: bool,
     pub sync: SyncConfig,
     pub websocket: WebSocketConfig,
+    #[serde(default)]
+    pub indicator: IndicatorConfig,
 }
 
 impl Default for Config {
@@ -43,6 +66,7 @@ impl Default for Config {
                 ws_url: String::new(),
                 typing_idle_ms: 2000,
             },
+            indicator: IndicatorConfig::default(),
         }
     }
 }
