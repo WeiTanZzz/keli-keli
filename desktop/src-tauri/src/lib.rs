@@ -186,6 +186,7 @@ pub fn run() {
             commands::install_update,
             commands::get_app_icon,
             commands::get_app_display_name,
+            commands::start_window_drag,
         ])
         .setup(move |app| {
             // Set activation policy FIRST, before any window is created.

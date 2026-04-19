@@ -209,3 +209,9 @@ pub(crate) fn set_autostart(app: AppHandle, enabled: bool) {
         app.autolaunch().disable().ok();
     }
 }
+
+#[tauri::command]
+pub(crate) fn start_window_drag(window: tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    crate::macos::start_drag_window(&window);
+}

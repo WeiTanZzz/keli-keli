@@ -1,5 +1,5 @@
+import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useRef, useState } from "react"
 import { api, type Config } from "@/api"
 
@@ -54,6 +54,12 @@ export default function App() {
         const handleBlur = () => setPlusOnes([])
         window.addEventListener("blur", handleBlur)
         return () => window.removeEventListener("blur", handleBlur)
+    }, [])
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => e.preventDefault()
+        window.addEventListener("keydown", handler)
+        return () => window.removeEventListener("keydown", handler)
     }, [])
 
     useEffect(() => {
@@ -159,11 +165,10 @@ export default function App() {
                 paddingBottom: 6,
             }}
             onMouseDown={(e) => {
-                if (e.button === 0) {
-                    e.preventDefault()
-                    setPlusOnes([])
-                    getCurrentWindow().startDragging()
-                }
+                if (e.button !== 0) return
+                e.preventDefault()
+                setPlusOnes([])
+                void invoke("start_window_drag")
             }}
         >
             {renderIcon()}
