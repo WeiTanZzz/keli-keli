@@ -151,6 +151,10 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 return event;
             }
             if event_type == KEY_DOWN {
+                // Skip key-repeat events (autorepeat field 8 = kCGKeyboardEventAutorepeat).
+                if CGEventGetIntegerValueField(event, 8) != 0 {
+                    return event;
+                }
                 // kCGEventFlagMaskCommand = 0x00100000, kVK_ANSI_Q = 12
                 // Intercept Cmd+Q only when KeliKeli itself is the active app
                 // so we never accidentally swallow Cmd+Q from other apps.
