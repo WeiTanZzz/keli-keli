@@ -247,9 +247,12 @@ export function StatisticsSection({
 
 const ICON_PRESETS = ["⌨️", "🖱️", "💻", "⚡", "🔥"]
 
-const BADGE_PRESETS: Record<"keystroke" | "left_click" | "right_click", string[]> = {
-    keystroke:   ["⌨️", "✍️", "💬", "📝", "🔤"],
-    left_click:  ["👈", "⬅️", "👆", "🤏", "🖱️"],
+const BADGE_PRESETS: Record<
+    "keystroke" | "left_click" | "right_click",
+    string[]
+> = {
+    keystroke: ["⌨️", "✍️", "💬", "📝", "🔤"],
+    left_click: ["👈", "⬅️", "👆", "🤏", "🖱️"],
     right_click: ["👉", "➡️", "⚙️", "📋", "☰"],
 }
 

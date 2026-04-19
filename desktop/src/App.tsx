@@ -40,7 +40,7 @@ export default function App() {
     useEffect(() => {
         if (indicator.icon_type !== "active_app" || !currentApp) return
         if (appIconCache.has(currentApp)) {
-            const cached = appIconCache.get(currentApp)!
+            const cached = appIconCache.get(currentApp)
             setActiveAppIcon(cached ? `data:image/png;base64,${cached}` : null)
             return
         }
