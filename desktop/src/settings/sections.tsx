@@ -246,15 +246,22 @@ export function StatisticsSection({
 // ─── GeneralSection ───────────────────────────────────────────────────────────
 
 const ICON_PRESETS = ["⌨️", "🖱️", "⚡", "🔥", "✨", "💻", "🎮", "⚙️", "🚀", "💡"]
-const BADGE_PRESETS = ["+1", "++", "🔥", "⚡", "✨", "💥"]
+
+const BADGE_PRESETS: Record<"keystroke" | "left_click" | "right_click", string[]> = {
+    keystroke:   ["⌨️", "✍️", "💬", "📝", "🔤"],
+    left_click:  ["👈", "⬅️", "👆", "🤏", "🖱️"],
+    right_click: ["👉", "➡️", "⚙️", "📋", "☰"],
+}
 
 function BadgeRow({
     label,
     value,
+    presets,
     onChange,
 }: {
     label: string
     value: string
+    presets: string[]
     onChange: (v: string) => void
 }) {
     return (
@@ -267,7 +274,7 @@ function BadgeRow({
                     maxLength={8}
                 />
                 <div className="flex gap-1 flex-wrap justify-end">
-                    {BADGE_PRESETS.map((preset) => (
+                    {presets.map((preset) => (
                         <button
                             key={preset}
                             type="button"
@@ -405,16 +412,19 @@ export function IndicatorSection({
                 <BadgeRow
                     label="Keystroke"
                     value={ind.badge_keystroke}
+                    presets={BADGE_PRESETS.keystroke}
                     onChange={(v) => onIndicator({ badge_keystroke: v })}
                 />
                 <BadgeRow
                     label="Left click"
                     value={ind.badge_left_click}
+                    presets={BADGE_PRESETS.left_click}
                     onChange={(v) => onIndicator({ badge_left_click: v })}
                 />
                 <BadgeRow
                     label="Right click"
                     value={ind.badge_right_click}
+                    presets={BADGE_PRESETS.right_click}
                     onChange={(v) => onIndicator({ badge_right_click: v })}
                 />
             </Card>
