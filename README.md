@@ -82,12 +82,10 @@ When enabled, POSTs to `api_url` every `interval_secs` seconds with header
     "keystrokes": 42,
     "left_clicks": 7,
     "right_clicks": 1,
-    "period_secs": 60
-  },
-  "today": {
+    "period_secs": 60,
     "apps": [
-      { "app": "Xcode",  "keystrokes": 3021, "left_clicks": 142, "right_clicks": 8 },
-      { "app": "Safari", "keystrokes": 870,  "left_clicks": 310, "right_clicks": 22 }
+      { "app": "Xcode",  "keystrokes": 38, "left_clicks": 5, "right_clicks": 0 },
+      { "app": "Safari", "keystrokes": 4,  "left_clicks": 2, "right_clicks": 1 }
     ]
   }
 }
