@@ -26,6 +26,31 @@ pub(crate) async fn do_sync(
         left_clicks: left,
         right_clicks: right,
     };
+
+    // Build today's per-app breakdown
+    let mut apps: std::collections::HashMap<String, serde_json::Value> =
+        std::collections::HashMap::new();
+    for (_, app, count) in storage.get_app_stats(1) {
+        let entry = apps.entry(app).or_insert_with(|| {
+            serde_json::json!({ "keystrokes": 0u64, "left_clicks": 0u64, "right_clicks": 0u64 })
+        });
+        entry["keystrokes"] = serde_json::json!(count);
+    }
+    for (_, app, lc, rc) in storage.get_app_click_stats(1) {
+        let entry = apps.entry(app).or_insert_with(|| {
+            serde_json::json!({ "keystrokes": 0u64, "left_clicks": 0u64, "right_clicks": 0u64 })
+        });
+        entry["left_clicks"] = serde_json::json!(lc);
+        entry["right_clicks"] = serde_json::json!(rc);
+    }
+    let apps_array: Vec<serde_json::Value> = apps
+        .into_iter()
+        .map(|(name, mut v)| {
+            v["app"] = serde_json::json!(name);
+            v
+        })
+        .collect();
+
     let synced_at = chrono::Local::now().to_rfc3339();
     client
         .post(&cfg.api_url)
@@ -42,6 +67,9 @@ pub(crate) async fn do_sync(
                 "left_clicks": left.saturating_sub(prev.left_clicks),
                 "right_clicks": right.saturating_sub(prev.right_clicks),
                 "period_secs": cfg.interval_secs,
+            },
+            "today": {
+                "apps": apps_array,
             },
         }))
         .send()
@@ -102,6 +130,7 @@ mod tests {
                 "totals": { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64 },
                 "delta":  { "keystrokes": 3u64, "left_clicks": 2u64, "right_clicks": 1u64,
                              "period_secs": 60u64 },
+                "today": {},
             })))
             .with_status(200)
             .expect(1)
@@ -150,6 +179,33 @@ mod tests {
             right_clicks: 0,
         };
         do_sync(&client, &storage, &test_sync_cfg(&server.url()), &prev).await;
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_includes_today_app_breakdown() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock = server
+            .mock("POST", "/")
+            .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+                "today": {},
+            })))
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let (_dir, storage) = temp_storage();
+        for _ in 0..5 {
+            storage.increment_today_app("Xcode");
+        }
+        storage.increment_today_app_click("Safari", 0);
+        storage.increment_today_app_click("Safari", 1);
+
+        let client = reqwest::Client::new();
+        do_sync(&client, &storage, &test_sync_cfg(&server.url()), &SyncSnapshot::default()).await;
 
         mock.assert_async().await;
     }
