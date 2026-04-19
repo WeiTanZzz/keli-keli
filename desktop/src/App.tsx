@@ -57,6 +57,12 @@ export default function App() {
     }, [])
 
     useEffect(() => {
+        const handler = (e: KeyboardEvent) => e.preventDefault()
+        window.addEventListener("keydown", handler)
+        return () => window.removeEventListener("keydown", handler)
+    }, [])
+
+    useEffect(() => {
         const unlisten = listen<{ count: number; app: string }>(
             "keystroke",
             (e) => {

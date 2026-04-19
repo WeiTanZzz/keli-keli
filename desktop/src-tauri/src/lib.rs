@@ -209,6 +209,8 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             macos::make_webview_transparent(&win);
+            #[cfg(target_os = "macos")]
+            macos::prevent_become_key_window(&win);
 
             if let Ok(Some(monitor)) = win.primary_monitor() {
                 let screen = monitor.size();

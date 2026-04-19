@@ -263,6 +263,49 @@ pub(crate) fn make_webview_transparent(win: &tauri::WebviewWindow) {
     }
 }
 
+/// Prevent the indicator window from ever becoming the key window.
+///
+/// When an NSWindow becomes the key window, macOS activates the IME panel for
+/// the focused WebView — that's the "keyboard ghost" that appears behind the
+/// indicator. By returning NO from canBecomeKeyWindow we stop macOS from ever
+/// routing keyboard focus to this window, which also prevents arrow-key /
+/// space-bar scroll jank inside the WebView.
+pub(crate) fn prevent_become_key_window(win: &tauri::WebviewWindow) {
+    use objc::declare::ClassDecl;
+    use objc::runtime::{Class, Object, Sel, BOOL, NO};
+    use objc::{sel, sel_impl};
+
+    extern "C" {
+        fn object_setClass(obj: *mut Object, cls: *const Class) -> *const Class;
+    }
+
+    extern "C" fn cannot_become_key(_this: &Object, _sel: Sel) -> BOOL {
+        NO
+    }
+
+    let Ok(ptr) = win.ns_window() else { return };
+    unsafe {
+        let ns_window = ptr as *mut Object;
+        let superclass = (*ns_window).class();
+
+        let new_class: *const Class = match Class::get("KKIndicatorWindow") {
+            Some(c) => c,
+            None => match ClassDecl::new("KKIndicatorWindow", superclass) {
+                Some(mut decl) => {
+                    decl.add_method(
+                        sel!(canBecomeKeyWindow),
+                        cannot_become_key as extern "C" fn(&Object, Sel) -> BOOL,
+                    );
+                    decl.register()
+                }
+                None => return,
+            },
+        };
+
+        object_setClass(ns_window, new_class);
+    }
+}
+
 /// Make the settings window background transparent and give it a 12-pt
 /// corner radius using the NSWindow contentView's CALayer.
 /// Does NOT change window level or collection behavior (unlike the indicator).
