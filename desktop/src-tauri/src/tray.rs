@@ -96,6 +96,6 @@ pub(crate) fn open_settings_window(app: &AppHandle) {
 }
 
 fn build_tray_icon() -> TrayImage<'static> {
-    let bytes = include_bytes!("../icons/32x32.png");
+    let bytes = include_bytes!("../icons/tray.png");
     TrayImage::from_bytes(bytes).expect("failed to load tray icon")
 }
