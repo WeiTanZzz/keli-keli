@@ -105,6 +105,8 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 
 | Setting | Description |
 |---|---|
+| Launch at startup | Auto-start when you log in |
+| Flush interval | How often activity is written to disk (seconds) |
 | Indicator → Icon type | Emoji (custom or preset) or active app's icon |
 | Indicator → Badge text | Independent badge labels for keystroke / left click / right click |
 | HTTP Sync | POST totals to your API on an interval |
