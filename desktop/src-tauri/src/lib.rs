@@ -141,9 +141,7 @@ async fn key_loop(
 }
 
 fn save_indicator_position(app: &AppHandle) {
-    let Some(cfg_state) =
-        app.try_state::<Arc<Mutex<config::Config>>>()
-    else {
+    let Some(cfg_state) = app.try_state::<Arc<Mutex<config::Config>>>() else {
         return;
     };
     let Some(win) = app.get_webview_window("main") else {
