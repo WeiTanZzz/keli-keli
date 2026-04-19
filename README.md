@@ -1,8 +1,10 @@
 # KeliKeli
 
+**Your keystrokes, counted. Your habits, revealed.**
+
 ![keli-keli](https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f)
 
-A tiny macOS app that floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
+A tiny macOS app that floats a live +1 on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
 
 ## Download
 
@@ -14,9 +16,7 @@ A tiny macOS app that floats a live indicator on your screen with every keystrok
 
 ## What you get
 
-**Live feedback** — A floating badge animation appears on every key press and click. Feel your activity in real time.
-
-**Customizable indicator** — Choose your indicator icon: pick any emoji or show the active app's icon. Set independent badge text for keystrokes, left clicks, and right clicks — with one-click presets or your own value.
+**Live feedback** — A floating +1 animation appears on every key press and click. Feel your activity in real time.
 
 **Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
 
@@ -107,7 +107,5 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 |---|---|
 | Launch at startup | Auto-start when you log in |
 | Flush interval | How often activity is written to disk (seconds) |
-| Indicator → Icon type | Emoji (custom or preset) or active app's icon |
-| Indicator → Badge text | Independent badge labels for keystroke / left click / right click |
 | HTTP Sync | POST totals to your API on an interval |
 | WebSocket | Stream live events to a server |
