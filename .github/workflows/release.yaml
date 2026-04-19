@@ -16,6 +16,7 @@ permissions:
     contents: write
 
 env:
+    MIN_VERSION: "v0.4.0"
     RELEASE_VERSION: ${{ github.event.inputs.version }}
 
 jobs:
@@ -35,6 +36,12 @@ jobs:
                   GH_TOKEN: ${{ secrets.RELEASE_PAT }}
               run: |
                   NEW="${{ env.RELEASE_VERSION }}"
+                  FLOOR="${{ env.MIN_VERSION }}"
+                  FLOOR_CHECK=$(printf '%s\n' "$FLOOR" "$NEW" | sort -V | tail -1)
+                  if [ "$FLOOR_CHECK" != "$NEW" ]; then
+                    echo "Error: $NEW is below the minimum allowed version $FLOOR."
+                    exit 1
+                  fi
                   LATEST=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "v0.0.0")
                   if [ "$LATEST" = "null" ]; then LATEST="v0.0.0"; fi
                   HIGHEST=$(printf '%s\n' "$LATEST" "$NEW" | sort -V | tail -1)
