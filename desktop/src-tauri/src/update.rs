@@ -59,7 +59,11 @@ pub(crate) async fn check_for_updates_manual(app: &AppHandle) {
         Ok(u) => u,
         Err(_) => {
             #[cfg(target_os = "macos")]
-            show_alert(app, "Update Check Failed", "Could not reach the update server.");
+            show_alert(
+                app,
+                "Update Check Failed",
+                "Could not reach the update server.",
+            );
             return;
         }
     };
@@ -81,7 +85,11 @@ pub(crate) async fn check_for_updates_manual(app: &AppHandle) {
         }
         Err(_) => {
             #[cfg(target_os = "macos")]
-            show_alert(app, "Update Check Failed", "Could not reach the update server.");
+            show_alert(
+                app,
+                "Update Check Failed",
+                "Could not reach the update server.",
+            );
         }
     }
 }
