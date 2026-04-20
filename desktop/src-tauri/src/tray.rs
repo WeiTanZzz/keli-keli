@@ -20,11 +20,28 @@ pub(crate) fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     let sep0 = PredefinedMenuItem::separator(app)?;
     let toggle = MenuItemBuilder::with_id("toggle", "Hide Indicator").build(app)?;
     let settings = MenuItemBuilder::with_id("settings", "Settings…").build(app)?;
-    let sep = PredefinedMenuItem::separator(app)?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let version_str = app.package_info().version.to_string();
+    let version = MenuItemBuilder::with_id("version", format!("Version {version_str}"))
+        .enabled(false)
+        .build(app)?;
+    let check_updates =
+        MenuItemBuilder::with_id("check_updates", "Check for Updates…").build(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit KeliKeli").build(app)?;
 
     let menu = MenuBuilder::new(app)
-        .items(&[&count, &sep0, &toggle, &settings, &sep, &quit])
+        .items(&[
+            &count,
+            &sep0,
+            &toggle,
+            &settings,
+            &sep1,
+            &version,
+            &check_updates,
+            &sep2,
+            &quit,
+        ])
         .build()?;
 
     app.manage(CountItem(Mutex::new(count)));
@@ -56,6 +73,12 @@ pub(crate) fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
                 }
             }
             "settings" => open_settings_window(app),
+            "check_updates" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    crate::update::check_for_updates_manual(&app).await;
+                });
+            }
             "quit" => {
                 #[cfg(target_os = "macos")]
                 if !crate::macos::macos_confirm_quit() {
