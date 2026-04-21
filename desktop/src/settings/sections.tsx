@@ -137,19 +137,27 @@ export function StatisticsSection({
 
     // ── Explore range (chart + By App share the same picker) ──────────────────
     const [preset, setPreset] = useState<Preset>("30d")
-    // rangeSelection tracks the calendar's state including partial selections.
-    // isCustom is only true when BOTH from and to are picked — that's when
-    // we apply it as the active filter.
-    const [rangeSelection, setRangeSelection] = useState<DateRange | undefined>(
+    const [popoverOpen, setPopoverOpen] = useState(false)
+
+    // appliedRange: active filter. Never touched by partial selections —
+    // only set when user completes a full range, or cleared by preset click.
+    const [appliedRange, setAppliedRange] = useState<
+        { from: Date; to: Date } | undefined
+    >(undefined)
+
+    // inProgress: transient calendar state while user is picking the end date.
+    // Kept separate so the filter never flickers back to preset mid-selection.
+    const [inProgress, setInProgress] = useState<DateRange | undefined>(
         undefined,
     )
-    const isCustom = rangeSelection?.from != null && rangeSelection?.to != null
+
+    const isCustom = appliedRange != null
 
     const { startDate, endDate } = useMemo(() => {
-        if (isCustom && rangeSelection?.from && rangeSelection?.to) {
+        if (appliedRange) {
             return {
-                startDate: localDateStr(rangeSelection.from),
-                endDate: localDateStr(rangeSelection.to),
+                startDate: localDateStr(appliedRange.from),
+                endDate: localDateStr(appliedRange.to),
             }
         }
         const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90
@@ -159,20 +167,30 @@ export function StatisticsSection({
             ),
             endDate: today,
         }
-    }, [isCustom, rangeSelection, preset, today])
+    }, [appliedRange, preset, today])
 
     const handlePreset = (p: Preset) => {
         setPreset(p)
-        setRangeSelection(undefined)
+        setAppliedRange(undefined)
+        setInProgress(undefined)
     }
 
-    // Pass rangeSelection directly to the calendar so partial (first-click)
-    // state is preserved. Fall back to the preset range only when no selection
-    // has been started yet (rangeSelection === undefined).
-    const calendarDisplay: DateRange = rangeSelection ?? {
-        from: dateFromStr(startDate),
-        to: dateFromStr(endDate),
+    const handleCalendarSelect = (range: DateRange | undefined) => {
+        setInProgress(range)
+        if (range?.from && range?.to) {
+            setAppliedRange({ from: range.from, to: range.to })
+            setInProgress(undefined)
+            setPopoverOpen(false) // auto-close after complete selection
+        }
+        // Partial (only from clicked): keep appliedRange intact so
+        // the chart doesn't flicker while user picks the end date
     }
+
+    // Calendar shows in-progress pick or applied range — never the preset range.
+    // Showing the preset as "selected" misleads users into thinking it's a custom pick.
+    const calendarDisplay: DateRange | undefined =
+        inProgress ??
+        (appliedRange ? { from: appliedRange.from, to: appliedRange.to } : undefined)
 
     const histStats = useMemo(
         () => stats.filter((s) => s.date >= startDate && s.date <= endDate),
@@ -322,7 +340,13 @@ export function StatisticsSection({
                                 {label}
                             </button>
                         ))}
-                        <Popover>
+                        <Popover
+                            open={popoverOpen}
+                            onOpenChange={(open) => {
+                                setPopoverOpen(open)
+                                if (!open) setInProgress(undefined)
+                            }}
+                        >
                             <PopoverTrigger asChild>
                                 <button
                                     type="button"
@@ -342,7 +366,7 @@ export function StatisticsSection({
                                 <Calendar
                                     mode="range"
                                     selected={calendarDisplay}
-                                    onSelect={setRangeSelection}
+                                    onSelect={handleCalendarSelect}
                                     disabled={{ after: dateFromStr(today) }}
                                     numberOfMonths={1}
                                 />
@@ -357,6 +381,8 @@ export function StatisticsSection({
                         <DailyBarChart
                             stats={histStats}
                             clickStats={histClicks}
+                            rangeStart={startDate}
+                            rangeEnd={endDate}
                         />
                     </div>
 

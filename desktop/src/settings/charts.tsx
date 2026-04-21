@@ -77,39 +77,76 @@ export function AppRow({
 
 // ─── DailyBarChart ────────────────────────────────────────────────────────────
 
+// Iterate every calendar day from rangeStart to rangeEnd (local-timezone-safe).
+function buildDateRange(rangeStart: string, rangeEnd: string): string[] {
+    const result: string[] = []
+    const [sy, sm, sd] = rangeStart.split("-").map(Number)
+    const d = new Date(sy, sm - 1, sd)
+    while (true) {
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, "0")
+        const day = String(d.getDate()).padStart(2, "0")
+        const str = `${y}-${m}-${day}`
+        if (str > rangeEnd) break
+        result.push(str)
+        d.setDate(d.getDate() + 1) // DST-safe: adds one calendar day
+    }
+    return result
+}
+
 export function DailyBarChart({
     stats,
     clickStats,
+    rangeStart,
+    rangeEnd,
 }: {
     stats: DayStat[]
     clickStats: AppClickStat[]
+    rangeStart?: string
+    rangeEnd?: string
 }) {
     const today = localDateStr()
 
-    const dailyClicks = useMemo(() => {
-        const map = new Map<string, number>()
+    const keyMap = useMemo(
+        () => new Map(stats.map((s) => [s.date, s.count])),
+        [stats],
+    )
+
+    const clickMap = useMemo(() => {
+        const m = new Map<string, number>()
         for (const s of clickStats) {
-            map.set(
-                s.date,
-                (map.get(s.date) ?? 0) + s.left_clicks + s.right_clicks,
-            )
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
         }
-        return map
+        return m
     }, [clickStats])
 
-    const max = useMemo(
+    // Full date sequence covering rangeStart→rangeEnd (fills gaps with 0-data days)
+    const allDates = useMemo(() => {
+        const start = rangeStart ?? stats[0]?.date ?? today
+        const end = rangeEnd ?? today
+        return buildDateRange(start, end)
+    }, [rangeStart, rangeEnd, stats, today])
+
+    const dayData = useMemo(
         () =>
-            Math.max(
-                ...stats.map((s) => s.count + (dailyClicks.get(s.date) ?? 0)),
-                1,
-            ),
-        [stats, dailyClicks],
+            allDates.map((date) => {
+                const keys = keyMap.get(date) ?? 0
+                const clicks = clickMap.get(date) ?? 0
+                return { date, keys, clicks, total: keys + clicks }
+            }),
+        [allDates, keyMap, clickMap],
+    )
+
+    const max = useMemo(
+        () => Math.max(...dayData.map((d) => d.total), 1),
+        [dayData],
     )
 
     const [hovered, setHovered] = useState<string | null>(null)
     const infoDate = hovered ?? today
-    const infoKeys = stats.find((s) => s.date === infoDate)?.count ?? 0
-    const infoClicks = dailyClicks.get(infoDate) ?? 0
+    const info = dayData.find((d) => d.date === infoDate)
+    const infoKeys = info?.keys ?? 0
+    const infoClicks = info?.clicks ?? 0
 
     return (
         <div className="flex flex-col gap-1.5">
@@ -128,53 +165,56 @@ export function DailyBarChart({
                 )}
             </div>
 
-            {/* Bars */}
+            {/* Bars — data days are colored, empty days show a 2 px gray stub */}
             <div className="flex items-end gap-0.5 h-20">
-                {stats.map((s) => {
-                    const clicks = dailyClicks.get(s.date) ?? 0
-                    const total = s.count + clicks
+                {dayData.map(({ date, keys, clicks, total }) => {
+                    const isToday = date === today
+                    const isHovered = date === hovered
+                    const hasData = total > 0
                     const totalPct = (total / max) * 100
-                    const keyFrac = total > 0 ? s.count / total : 1
-                    const clickFrac = 1 - keyFrac
-                    const isToday = s.date === today
-                    const isHovered = s.date === hovered
+                    const keyFrac = total > 0 ? keys / total : 1
+
                     return (
                         <div
-                            key={s.date}
+                            key={date}
                             className="flex flex-1 flex-col justify-end h-full group"
-                            onMouseEnter={() => setHovered(s.date)}
+                            onMouseEnter={() => setHovered(date)}
                             onMouseLeave={() => setHovered(null)}
                         >
-                            <div
-                                className={cn(
-                                    "w-full rounded-sm overflow-hidden flex flex-col-reverse transition-all duration-100",
-                                    isToday || isHovered
-                                        ? "opacity-100"
-                                        : "opacity-50 group-hover:opacity-100",
-                                )}
-                                style={{
-                                    height: `${totalPct}%`,
-                                    minHeight: total ? 2 : 0,
-                                }}
-                            >
+                            {hasData ? (
                                 <div
                                     className={cn(
-                                        "w-full shrink-0 transition-colors",
-                                        isToday
-                                            ? "bg-indigo-500"
-                                            : "bg-indigo-400",
+                                        "w-full rounded-sm overflow-hidden flex flex-col-reverse transition-all duration-100",
+                                        isToday || isHovered
+                                            ? "opacity-100"
+                                            : "opacity-55 group-hover:opacity-100",
                                     )}
-                                    style={{ height: `${keyFrac * 100}%` }}
-                                />
-                                {clicks > 0 && (
+                                    style={{ height: `${totalPct}%`, minHeight: 2 }}
+                                >
                                     <div
-                                        className="w-full shrink-0 bg-rose-400"
-                                        style={{
-                                            height: `${clickFrac * 100}%`,
-                                        }}
+                                        className={cn(
+                                            "w-full shrink-0",
+                                            isToday ? "bg-indigo-500" : "bg-indigo-400",
+                                        )}
+                                        style={{ height: `${keyFrac * 100}%` }}
                                     />
-                                )}
-                            </div>
+                                    {clicks > 0 && (
+                                        <div
+                                            className="w-full shrink-0 bg-rose-400"
+                                            style={{ height: `${(1 - keyFrac) * 100}%` }}
+                                        />
+                                    )}
+                                </div>
+                            ) : (
+                                /* Empty day: 2 px gray stub */
+                                <div
+                                    className={cn(
+                                        "w-full rounded-sm bg-zinc-200 transition-colors",
+                                        isHovered && "bg-zinc-300",
+                                    )}
+                                    style={{ height: 2 }}
+                                />
+                            )}
                         </div>
                     )
                 })}
@@ -182,21 +222,21 @@ export function DailyBarChart({
 
             {/* Date labels */}
             <div className="flex items-start gap-0.5">
-                {stats.map((s, i) => {
+                {dayData.map(({ date }, i) => {
                     const showLabel =
-                        i === 0 || i === stats.length - 1 || i % 7 === 0
+                        i === 0 || i === dayData.length - 1 || i % 7 === 0
                     return (
-                        <div key={s.date} className="flex-1 text-center">
+                        <div key={date} className="flex-1 text-center">
                             {showLabel && (
                                 <span
                                     className={cn(
                                         "text-[9px] leading-none",
-                                        s.date === today
+                                        date === today
                                             ? "text-indigo-500 font-medium"
                                             : "text-zinc-400",
                                     )}
                                 >
-                                    {s.date.slice(5)}
+                                    {date.slice(5)}
                                 </span>
                             )}
                         </div>
