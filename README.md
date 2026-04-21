@@ -24,33 +24,33 @@
 
 <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
-## Download
+## Download 📦
 
 [**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
 
-## What you get
+## What you get 🎁
 
-**Live feedback** — A floating badge animation appears on every key press and click. Feel your activity in real time.
+⚡ **Live feedback** — A floating badge animation appears on every key press and click. Feel your activity in real time.
 
-**Customizable indicator** — Choose your indicator icon: pick any emoji or show the active app's icon. Set independent badge text for keystrokes, left clicks, and right clicks — with one-click presets or your own value.
+🎨 **Customizable indicator** — Choose your indicator icon: pick any emoji or show the active app's icon. Set independent badge text for keystrokes, left clicks, and right clicks — with one-click presets or your own value.
 
-**Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
+📊 **Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
 
-**30-day history** — Open Settings to see your activity over the past month: keystrokes, clicks, streaks, daily averages, and your all-time count.
+📅 **30-day history** — Open Settings to see your activity over the past month: keystrokes, clicks, streaks, daily averages, and your all-time count.
 
-**Per-app breakdown** — See exactly which apps are getting the most of your time and energy.
+🔍 **Per-app breakdown** — See exactly which apps are getting the most of your time and energy.
 
-**Dark mode** — Choose System, Light, or Dark theme in Settings → General. Takes effect instantly.
+🌙 **Dark mode** — Choose System, Light, or Dark theme in Settings → General. Takes effect instantly.
 
-**Multi-language support** — UI language auto-detected from your system, with a toggle in Settings → General.
+🌐 **Multi-language support** — UI language auto-detected from your system, with a toggle in Settings → General.
 
-**Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
+💾 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
 
-## Sync & integrations
+## Sync & integrations 🔗
 
 KeliKeli can push your activity to any HTTP endpoint or WebSocket server you control.
 
@@ -89,7 +89,7 @@ Streams individual events as they happen:
 Reconnects automatically with exponential back-off (up to 5 min).
 
 
-## Privacy
+## Privacy 🔒
 
 KeliKeli counts — it does not record. It never captures which keys you press, logs text input, or sends keystroke content anywhere. The system hook increments a counter and nothing more.
 
@@ -121,7 +121,7 @@ Alternatively: right-click → **Open** → **Open** to grant a one-time excepti
 Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
 
-## Settings reference
+## Settings reference ⚙️
 
 | Setting | Description |
 |---|---|
@@ -135,7 +135,7 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 | WebSocket | Stream live events to a server |
 
 
-## Building from source
+## Building from source 🛠️
 
 **Prerequisites:** [Rust](https://rustup.rs) · [Node.js](https://nodejs.org) · [Tauri CLI](https://tauri.app/start/prerequisites/)
 
