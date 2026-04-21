@@ -23,7 +23,6 @@ function fmtNum(n: number): string {
     return n.toLocaleString()
 }
 
-
 type Preset = "7d" | "30d" | "90d"
 
 // ─── StatisticsSection ────────────────────────────────────────────────────────

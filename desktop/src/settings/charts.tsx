@@ -189,19 +189,26 @@ export function DailyBarChart({
                                             ? "opacity-100"
                                             : "opacity-55 group-hover:opacity-100",
                                     )}
-                                    style={{ height: `${totalPct}%`, minHeight: 2 }}
+                                    style={{
+                                        height: `${totalPct}%`,
+                                        minHeight: 2,
+                                    }}
                                 >
                                     <div
                                         className={cn(
                                             "w-full shrink-0",
-                                            isToday ? "bg-indigo-500" : "bg-indigo-400",
+                                            isToday
+                                                ? "bg-indigo-500"
+                                                : "bg-indigo-400",
                                         )}
                                         style={{ height: `${keyFrac * 100}%` }}
                                     />
                                     {clicks > 0 && (
                                         <div
                                             className="w-full shrink-0 bg-rose-400"
-                                            style={{ height: `${(1 - keyFrac) * 100}%` }}
+                                            style={{
+                                                height: `${(1 - keyFrac) * 100}%`,
+                                            }}
                                         />
                                     )}
                                 </div>
@@ -224,36 +231,67 @@ export function DailyBarChart({
             <div className="relative h-3.5">
                 {(() => {
                     const n = dayData.length
-                    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+                    const MONTHS = [
+                        "Jan",
+                        "Feb",
+                        "Mar",
+                        "Apr",
+                        "May",
+                        "Jun",
+                        "Jul",
+                        "Aug",
+                        "Sep",
+                        "Oct",
+                        "Nov",
+                        "Dec",
+                    ]
                     const fmt = (date: string) =>
-                        `${MONTHS[parseInt(date.slice(5, 7)) - 1]} ${parseInt(date.slice(8))}`
+                        `${MONTHS[parseInt(date.slice(5, 7), 10) - 1]} ${parseInt(date.slice(8), 10)}`
 
                     // Build candidate labels then filter by minimum bar-index spacing
                     const candidates: { i: number; text: string }[] = []
 
                     if (n <= 14) {
-                        dayData.forEach(({ date }, i) =>
-                            candidates.push({ i, text: parseInt(date.slice(8)).toString() }),
-                        )
+                        for (let i = 0; i < dayData.length; i++) {
+                            candidates.push({
+                                i,
+                                text: parseInt(
+                                    dayData[i].date.slice(8),
+                                    10,
+                                ).toString(),
+                            })
+                        }
                     } else if (n <= 31) {
                         // First + every 7 days
                         dayData.forEach(({ date }, i) => {
-                            if (i === 0 || i % 7 === 0) candidates.push({ i, text: fmt(date) })
+                            if (i === 0 || i % 7 === 0)
+                                candidates.push({ i, text: fmt(date) })
                         })
                         // Last only if it won't crowd the previous label
                         if (n - 1 - candidates[candidates.length - 1].i >= 4)
-                            candidates.push({ i: n - 1, text: fmt(dayData[n - 1].date) })
+                            candidates.push({
+                                i: n - 1,
+                                text: fmt(dayData[n - 1].date),
+                            })
                     } else {
                         // First date
                         candidates.push({ i: 0, text: fmt(dayData[0].date) })
                         // Month starts: just the month name
                         dayData.forEach(({ date }, i) => {
                             if (date.slice(8) === "01")
-                                candidates.push({ i, text: MONTHS[parseInt(date.slice(5, 7)) - 1] })
+                                candidates.push({
+                                    i,
+                                    text: MONTHS[
+                                        parseInt(date.slice(5, 7), 10) - 1
+                                    ],
+                                })
                         })
                         // Last date only if far enough from the previous label
                         if (n - 1 - candidates[candidates.length - 1].i >= 10)
-                            candidates.push({ i: n - 1, text: fmt(dayData[n - 1].date) })
+                            candidates.push({
+                                i: n - 1,
+                                text: fmt(dayData[n - 1].date),
+                            })
                     }
 
                     return candidates.map(({ i, text }) => (
