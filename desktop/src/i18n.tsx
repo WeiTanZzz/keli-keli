@@ -71,6 +71,11 @@ export type Translations = {
         title: string
         language: string
         languageDesc: string
+        appearance: string
+        appearanceDesc: string
+        themeSystem: string
+        themeLight: string
+        themeDark: string
         launchAtStartup: string
         launchDesc: string
         flushInterval: string
@@ -173,6 +178,11 @@ const translations: Record<Lang, Translations> = {
             title: "General",
             language: "Language",
             languageDesc: "Display language",
+            appearance: "Appearance",
+            appearanceDesc: "Choose your preferred color scheme",
+            themeSystem: "System",
+            themeLight: "Light",
+            themeDark: "Dark",
             launchAtStartup: "Launch at startup",
             launchDesc: "Start KeliKeli when you log in",
             flushInterval: "Flush interval",
@@ -272,6 +282,11 @@ const translations: Record<Lang, Translations> = {
             title: "通用",
             language: "语言",
             languageDesc: "界面显示语言",
+            appearance: "外观",
+            appearanceDesc: "选择颜色主题",
+            themeSystem: "跟随系统",
+            themeLight: "浅色",
+            themeDark: "深色",
             launchAtStartup: "开机启动",
             launchDesc: "登录时自动启动 KeliKeli",
             flushInterval: "刷新间隔",

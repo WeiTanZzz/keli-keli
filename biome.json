@@ -38,5 +38,11 @@
         "formatter": {
             "semicolons": "asNeeded"
         }
+    },
+    "css": {
+        "parser": {
+            "cssModules": false,
+            "tailwindDirectives": true
+        }
     }
 }

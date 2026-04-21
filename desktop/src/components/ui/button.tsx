@@ -10,8 +10,8 @@ const buttonVariants = cva(
                 default:
                     "bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700",
                 outline:
-                    "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50",
-                ghost: "text-zinc-700 hover:bg-zinc-100",
+                    "border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700",
+                ghost: "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700",
                 success: "bg-emerald-500 text-white",
             },
             size: {

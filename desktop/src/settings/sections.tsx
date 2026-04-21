@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { type Lang, useT } from "@/i18n"
+import type { Theme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
 import { computeStreak, localDateStr } from "./helpers"
@@ -170,12 +171,12 @@ export function StatisticsSection({
                     )}
                 </div>
                 <Card>
-                    <div className="grid grid-cols-3 divide-x divide-zinc-100">
+                    <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-700">
                         <div className="flex flex-col gap-1 px-4 py-4">
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
                                 {t.stats.total}
                             </span>
-                            <span className="text-3xl font-bold text-zinc-900 tabular-nums leading-tight mt-1">
+                            <span className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayTotal)}
                             </span>
                             <span className="text-[10px] text-zinc-400 mt-0.5">
@@ -186,7 +187,7 @@ export function StatisticsSection({
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
                                 {t.stats.keystrokes}
                             </span>
-                            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-tight mt-1">
+                            <span className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayKeys)}
                             </span>
                             <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
@@ -198,7 +199,7 @@ export function StatisticsSection({
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
                                 {t.stats.clicks}
                             </span>
-                            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-tight mt-1">
+                            <span className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayClicks)}
                             </span>
                             <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
@@ -209,7 +210,7 @@ export function StatisticsSection({
                             </span>
                         </div>
                     </div>
-                    <div className="px-4 py-3 border-t border-zinc-100">
+                    <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-700">
                         <TodayByApp
                             appStats={appStats}
                             clickStats={clickStats}
@@ -223,7 +224,7 @@ export function StatisticsSection({
             <div className="flex flex-col gap-2">
                 <SectionTitle>{t.stats.summary}</SectionTitle>
                 <Card>
-                    <div className="grid grid-cols-4 divide-x divide-zinc-100">
+                    <div className="grid grid-cols-4 divide-x divide-zinc-100 dark:divide-zinc-700">
                         <StatChip
                             label={t.stats.dailyAvg}
                             value={fmtNum(allTimeAvg)}
@@ -271,7 +272,7 @@ export function StatisticsSection({
                                     "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
                                     preset === id
                                         ? "bg-indigo-500 text-white font-medium"
-                                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600",
                                 )}
                             >
                                 {label}
@@ -292,7 +293,7 @@ export function StatisticsSection({
                     </div>
 
                     {/* By App — same date range */}
-                    <div className="px-4 pt-3 pb-4 border-t border-zinc-100">
+                    <div className="px-4 pt-3 pb-4 border-t border-zinc-100 dark:border-zinc-700">
                         <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
                             {t.stats.byApp}
                         </p>
@@ -348,8 +349,8 @@ function BadgeRow({
                             onClick={() => onChange(preset)}
                             className={`px-2 h-7 rounded text-xs font-medium transition-colors ${
                                 value === preset
-                                    ? "bg-indigo-100 ring-1 ring-indigo-400 text-indigo-700"
-                                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                                    ? "bg-indigo-100 dark:bg-indigo-900/50 ring-1 ring-indigo-400 text-indigo-700 dark:text-indigo-300"
+                                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                             }`}
                         >
                             {preset}
@@ -361,15 +362,21 @@ function BadgeRow({
     )
 }
 
+const THEME_IDS: Theme[] = ["system", "light", "dark"]
+
 export function GeneralSection({
     autostart,
     cfg,
+    theme,
     onAutostart,
+    onTheme,
     onFlushInterval,
 }: {
     autostart: boolean
     cfg: Config
+    theme: Theme
     onAutostart: (v: boolean) => void
+    onTheme: (t: Theme) => void
     onFlushInterval: (v: string) => void
 }) {
     const { t, lang, setLang } = useT()
@@ -390,12 +397,40 @@ export function GeneralSection({
                                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                                     lang === l
                                         ? "bg-indigo-500 text-white"
-                                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                                 }`}
                             >
                                 {t.lang[l]}
                             </button>
                         ))}
+                    </div>
+                </FormRow>
+                <FormRow
+                    label={t.general.appearance}
+                    description={t.general.appearanceDesc}
+                >
+                    <div className="flex gap-1">
+                        {THEME_IDS.map((id) => {
+                            const themeLabel = {
+                                system: t.general.themeSystem,
+                                light: t.general.themeLight,
+                                dark: t.general.themeDark,
+                            }[id]
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => onTheme(id)}
+                                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                        theme === id
+                                            ? "bg-indigo-500 text-white"
+                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                                    }`}
+                                >
+                                    {themeLabel}
+                                </button>
+                            )
+                        })}
                     </div>
                 </FormRow>
                 <FormRow
@@ -450,7 +485,7 @@ export function IndicatorSection({
                                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                                     ind.icon_type === type
                                         ? "bg-indigo-500 text-white"
-                                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                                 }`}
                             >
                                 {type === "emoji"
@@ -486,8 +521,8 @@ export function IndicatorSection({
                                         }
                                         className={`w-7 h-7 rounded text-base flex items-center justify-center transition-colors ${
                                             ind.icon_value === emoji
-                                                ? "bg-indigo-100 ring-1 ring-indigo-400"
-                                                : "hover:bg-zinc-100"
+                                                ? "bg-indigo-100 dark:bg-indigo-900/50 ring-1 ring-indigo-400"
+                                                : "hover:bg-zinc-100 dark:hover:bg-zinc-700"
                                         }`}
                                     >
                                         {emoji}

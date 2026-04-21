@@ -59,7 +59,7 @@ export function AppRow({
                 >
                     {displayName}
                 </span>
-                <div className="flex-1 h-2.5 bg-zinc-100 rounded-full overflow-hidden flex">
+                <div className="flex-1 h-2.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden flex">
                     <div
                         className="h-full bg-indigo-400 transition-all duration-500"
                         style={{ width: `${(keys / max) * 100}%` }}
@@ -219,8 +219,9 @@ export function DailyBarChart({
                                 /* Empty day: 2 px gray stub */
                                 <div
                                     className={cn(
-                                        "w-full rounded-sm bg-zinc-200 transition-colors",
-                                        isHovered && "bg-zinc-300",
+                                        "w-full rounded-sm bg-zinc-200 dark:bg-zinc-700 transition-colors",
+                                        isHovered &&
+                                            "bg-zinc-300 dark:bg-zinc-600",
                                     )}
                                     style={{ height: 2 }}
                                 />
@@ -557,7 +558,7 @@ export function AppBreakdownChart({
                                 "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
                                 period === id
                                     ? "bg-indigo-500 text-white font-medium"
-                                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600",
                             )}
                         >
                             {label}
