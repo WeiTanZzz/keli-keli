@@ -107,6 +107,8 @@ export type Translations = {
         clicks: string
         keysLabel: string
         clicksLabel: string
+        left: string
+        right: string
         fmtDate: (month: number, day: number) => string
         fmtMonth: (month: number) => string
     }
@@ -206,6 +208,8 @@ const translations: Record<Lang, Translations> = {
             clicks: "clicks",
             keysLabel: "Keys",
             clicksLabel: "Clicks",
+            left: "L",
+            right: "R",
             fmtDate: (m, d) => `${MONTHS_EN[m]} ${d}`,
             fmtMonth: (m) => MONTHS_EN[m],
         },
@@ -303,6 +307,8 @@ const translations: Record<Lang, Translations> = {
             clicks: "点击",
             keysLabel: "按键",
             clicksLabel: "点击",
+            left: "左键",
+            right: "右键",
             fmtDate: (m, d) => `${m + 1}月${d}日`,
             fmtMonth: (m) => `${m + 1}月`,
         },

@@ -39,13 +39,13 @@ export function AppRow({
                     {left > 0 && (
                         <span className="flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                            {left.toLocaleString()} L
+                            {left.toLocaleString()} {t.chart.left}
                         </span>
                     )}
                     {right > 0 && (
                         <span className="flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
-                            {right.toLocaleString()} R
+                            {right.toLocaleString()} {t.chart.right}
                         </span>
                     )}
                 </span>

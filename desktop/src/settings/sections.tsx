@@ -204,7 +204,7 @@ export function StatisticsSection({
                             <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-sm bg-rose-400 inline-block shrink-0" />
                                 {todayClicks > 0
-                                    ? `${todayLeft}L · ${todayRight}R`
+                                    ? `${todayLeft}${t.chart.left} · ${todayRight}${t.chart.right}`
                                     : t.stats.noClicks}
                             </span>
                         </div>
