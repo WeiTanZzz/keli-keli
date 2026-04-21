@@ -8,7 +8,13 @@ import type {
     IndicatorConfig,
 } from "@/api"
 import { Button } from "@/components/ui/button"
+import { Calendar, type DateRange } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
@@ -23,7 +29,22 @@ function fmtNum(n: number): string {
     return n.toLocaleString()
 }
 
-type HistoryPeriod = "7d" | "30d" | "90d"
+// Build a local-midnight Date from a YYYY-MM-DD string.
+// Using `new Date(s)` would parse as UTC midnight and shift the date for
+// users behind UTC. The constructor `new Date(y, m, d)` uses local time.
+function dateFromStr(s: string): Date {
+    const [y, m, d] = s.split("-").map(Number)
+    return new Date(y, m - 1, d)
+}
+
+function fmtDisplay(s: string): string {
+    return dateFromStr(s).toLocaleDateString("en", {
+        month: "short",
+        day: "numeric",
+    })
+}
+
+type Preset = "7d" | "30d" | "90d"
 
 // ─── StatisticsSection ────────────────────────────────────────────────────────
 
@@ -38,7 +59,6 @@ export function StatisticsSection({
     clickStats: AppClickStat[]
     allTimeCounts: AllTimeCounts | null
 }) {
-    const [historyPeriod, setHistoryPeriod] = useState<HistoryPeriod>("30d")
     const today = localDateStr()
     const yesterday = localDateStr(new Date(Date.now() - 86400000))
 
@@ -74,24 +94,55 @@ export function StatisticsSection({
             ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100)
             : null
 
-    // ── History period ─────────────────────────────────────────────────────────
-    const periodDays =
-        historyPeriod === "7d" ? 7 : historyPeriod === "30d" ? 30 : 90
-    const periodStart = localDateStr(
-        new Date(Date.now() - (periodDays - 1) * 86400000),
+    // ── Explore range (shared by History chart + By App) ──────────────────────
+    const [preset, setPreset] = useState<Preset>("30d")
+    const [customRange, setCustomRange] = useState<DateRange | undefined>(
+        undefined,
     )
+    const isCustom = customRange?.from != null && customRange?.to != null
+
+    const { startDate, endDate } = useMemo(() => {
+        if (isCustom && customRange?.from && customRange?.to) {
+            return {
+                startDate: localDateStr(customRange.from),
+                endDate: localDateStr(customRange.to),
+            }
+        }
+        const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90
+        return {
+            startDate: localDateStr(
+                new Date(Date.now() - (days - 1) * 86400000),
+            ),
+            endDate: today,
+        }
+    }, [isCustom, customRange, preset, today])
+
+    const handlePreset = (p: Preset) => {
+        setPreset(p)
+        setCustomRange(undefined)
+    }
+
+    const handleCalendar = (range: DateRange | undefined) => {
+        setCustomRange(range)
+    }
+
+    const calendarSelected: DateRange = {
+        from: dateFromStr(startDate),
+        to: dateFromStr(endDate),
+    }
 
     const histStats = useMemo(
-        () => stats.filter((s) => s.date >= periodStart),
-        [stats, periodStart],
+        () => stats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [stats, startDate, endDate],
     )
     const histClicks = useMemo(
-        () => clickStats.filter((s) => s.date >= periodStart),
-        [clickStats, periodStart],
+        () =>
+            clickStats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [clickStats, startDate, endDate],
     )
     const histAppStats = useMemo(
-        () => appStats.filter((s) => s.date >= periodStart),
-        [appStats, periodStart],
+        () => appStats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [appStats, startDate, endDate],
     )
 
     const dailyClickMap = useMemo(() => {
@@ -134,7 +185,7 @@ export function StatisticsSection({
           allTimeCounts.right_clicks
         : null
 
-    const periods: { id: HistoryPeriod; label: string }[] = [
+    const presets: { id: Preset; label: string }[] = [
         { id: "7d", label: "7d" },
         { id: "30d", label: "30d" },
         { id: "90d", label: "90d" },
@@ -142,7 +193,7 @@ export function StatisticsSection({
 
     return (
         <div className="flex flex-col gap-6">
-            {/* ── Today ── */}
+            {/* ── Section 1: Today ── */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                     <SectionTitle>Today</SectionTitle>
@@ -161,7 +212,6 @@ export function StatisticsSection({
                     )}
                 </div>
                 <Card>
-                    {/* 3 hero stat blocks */}
                     <div className="grid grid-cols-3 divide-x divide-zinc-100">
                         <div className="flex flex-col gap-1 px-4 py-4">
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
@@ -201,7 +251,6 @@ export function StatisticsSection({
                             </span>
                         </div>
                     </div>
-                    {/* By App today */}
                     <div className="px-4 py-3 border-t border-zinc-100">
                         <TodayByApp
                             appStats={appStats}
@@ -212,19 +261,20 @@ export function StatisticsSection({
                 </Card>
             </div>
 
-            {/* ── History ── */}
+            {/* ── Section 2: Explore (History + By App share the same range) ── */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <SectionTitle>History</SectionTitle>
-                    <div className="flex gap-1">
-                        {periods.map(({ id, label }) => (
+                    <SectionTitle>Explore</SectionTitle>
+                    {/* Range controls: preset chips + calendar date-range picker */}
+                    <div className="flex items-center gap-1.5">
+                        {presets.map(({ id, label }) => (
                             <button
                                 key={id}
                                 type="button"
-                                onClick={() => setHistoryPeriod(id)}
+                                onClick={() => handlePreset(id)}
                                 className={cn(
                                     "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
-                                    historyPeriod === id
+                                    !isCustom && preset === id
                                         ? "bg-indigo-500 text-white font-medium"
                                         : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
                                 )}
@@ -232,15 +282,46 @@ export function StatisticsSection({
                                 {label}
                             </button>
                         ))}
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        "px-2.5 py-0.5 text-[11px] rounded-full transition-colors border",
+                                        isCustom
+                                            ? "bg-indigo-500 text-white font-medium border-indigo-500"
+                                            : "bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50",
+                                    )}
+                                >
+                                    {isCustom
+                                        ? `${fmtDisplay(startDate)} – ${fmtDisplay(endDate)}`
+                                        : "Custom"}
+                                </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="p-0">
+                                <Calendar
+                                    mode="range"
+                                    selected={calendarSelected}
+                                    onSelect={handleCalendar}
+                                    disabled={{ after: dateFromStr(today) }}
+                                    numberOfMonths={1}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
+
                 <Card>
+                    {/* Bar chart */}
                     <div className="px-4 pt-4 pb-3">
                         <DailyBarChart
                             stats={histStats}
                             clickStats={histClicks}
+                            appStats={histAppStats}
                         />
                     </div>
+
+                    {/* Stat chips */}
                     <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
                         <StatChip
                             label="Daily avg"
@@ -269,14 +350,12 @@ export function StatisticsSection({
                             sub="actions"
                         />
                     </div>
-                </Card>
-            </div>
 
-            {/* ── By App ── */}
-            <div className="flex flex-col gap-2">
-                <SectionTitle>By App</SectionTitle>
-                <Card>
-                    <div className="px-4 py-4">
+                    {/* By App — same date range, same card */}
+                    <div className="px-4 pt-3 pb-4 border-t border-zinc-100">
+                        <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+                            By App
+                        </p>
                         <AppBreakdownRows
                             appStats={histAppStats}
                             clickStats={histClicks}

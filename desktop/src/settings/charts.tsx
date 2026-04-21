@@ -80,9 +80,11 @@ export function AppRow({
 export function DailyBarChart({
     stats,
     clickStats,
+    appStats,
 }: {
     stats: DayStat[]
     clickStats: AppClickStat[]
+    appStats?: AppStat[]
 }) {
     const today = localDateStr()
 
@@ -107,17 +109,43 @@ export function DailyBarChart({
     )
 
     const [hovered, setHovered] = useState<string | null>(null)
-    const [selected, setSelected] = useState<string | null>(null)
-
-    const infoDate = hovered ?? selected ?? today
+    const infoDate = hovered ?? today
     const infoKeys = stats.find((s) => s.date === infoDate)?.count ?? 0
     const infoClicks = dailyClicks.get(infoDate) ?? 0
 
+    // Top apps for the hovered/default date
+    const infoApps = useMemo(() => {
+        if (!appStats) return []
+        const clickData = new Map<string, { left: number; right: number }>()
+        for (const s of clickStats) {
+            if (s.date !== infoDate) continue
+            const p = clickData.get(s.app) ?? { left: 0, right: 0 }
+            clickData.set(s.app, {
+                left: p.left + s.left_clicks,
+                right: p.right + s.right_clicks,
+            })
+        }
+        const keyMap = new Map<string, number>()
+        for (const s of appStats) {
+            if (s.date !== infoDate) continue
+            keyMap.set(s.app, (keyMap.get(s.app) ?? 0) + s.count)
+        }
+        const allApps = new Set([...keyMap.keys(), ...clickData.keys()])
+        return Array.from(allApps)
+            .map((app) => {
+                const c = clickData.get(app) ?? { left: 0, right: 0 }
+                const k = keyMap.get(app) ?? 0
+                return { app, total: k + c.left + c.right }
+            })
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 4)
+    }, [appStats, clickStats, infoDate])
+
     return (
         <div className="flex flex-col gap-1.5">
-            {/* Info line */}
+            {/* Info row: date + totals */}
             <div className="flex items-center gap-3 h-4 text-[10px]">
-                <span className="text-zinc-400">{infoDate}</span>
+                <span className="text-zinc-400 tabular-nums">{infoDate}</span>
                 <span className="flex items-center gap-1 text-zinc-500">
                     <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
                     {infoKeys.toLocaleString()} keys
@@ -126,6 +154,19 @@ export function DailyBarChart({
                     <span className="flex items-center gap-1 text-zinc-500">
                         <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
                         {infoClicks.toLocaleString()} clicks
+                    </span>
+                )}
+                {infoApps.length > 0 && (
+                    <span className="flex items-center gap-1.5 ml-1 text-zinc-400">
+                        <span className="text-zinc-200">·</span>
+                        {infoApps.map(({ app, total }) => (
+                            <span key={app} className="truncate max-w-[60px]">
+                                {app.split(".").pop() ?? app}{" "}
+                                <span className="text-zinc-300">
+                                    {total.toLocaleString()}
+                                </span>
+                            </span>
+                        ))}
                     </span>
                 )}
             </div>
@@ -139,25 +180,20 @@ export function DailyBarChart({
                     const keyFrac = total > 0 ? s.count / total : 1
                     const clickFrac = 1 - keyFrac
                     const isToday = s.date === today
-                    const isSelected = s.date === selected
-                    const dow = new Date(`${s.date}T12:00:00`).getDay()
-                    const isWeekend = dow === 0 || dow === 6
+                    const isHovered = s.date === hovered
                     return (
                         <div
                             key={s.date}
-                            className="flex flex-1 flex-col justify-end h-full group cursor-pointer"
-                            onClick={() =>
-                                setSelected(s.date === selected ? null : s.date)
-                            }
+                            className="flex flex-1 flex-col justify-end h-full group"
                             onMouseEnter={() => setHovered(s.date)}
                             onMouseLeave={() => setHovered(null)}
                         >
                             <div
                                 className={cn(
-                                    "w-full rounded-sm overflow-hidden flex flex-col-reverse transition-all duration-150",
-                                    isSelected || isToday
+                                    "w-full rounded-sm overflow-hidden flex flex-col-reverse transition-all duration-100",
+                                    isToday || isHovered
                                         ? "opacity-100"
-                                        : "opacity-60 group-hover:opacity-90",
+                                        : "opacity-50 group-hover:opacity-100",
                                 )}
                                 style={{
                                     height: `${totalPct}%`,
@@ -166,14 +202,10 @@ export function DailyBarChart({
                             >
                                 <div
                                     className={cn(
-                                        "w-full shrink-0",
+                                        "w-full shrink-0 transition-colors",
                                         isToday
                                             ? "bg-indigo-500"
-                                            : isSelected
-                                              ? "bg-zinc-500"
-                                              : isWeekend
-                                                ? "bg-zinc-300"
-                                                : "bg-zinc-200",
+                                            : "bg-indigo-400",
                                     )}
                                     style={{ height: `${keyFrac * 100}%` }}
                                 />
