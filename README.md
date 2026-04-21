@@ -19,10 +19,6 @@
   <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
 </p>
 
-<p align="center">
-  <a href="../../stargazers">⭐️ Star us on GitHub</a>
-</p>
-
 ## A tiny macOS app that makes your work visible ⌨️✨
 
 **KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
