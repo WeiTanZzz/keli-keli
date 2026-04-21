@@ -23,6 +23,8 @@
   <a href="../../stargazers">⭐️ Star us on GitHub</a>
 </p>
 
+<br>
+
 ## A tiny macOS app that makes your work visible ⌨️✨
 
 **KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
@@ -32,17 +34,21 @@
 - 30-day history with streaks, averages, and per-app breakdown
 - Export as JSON or stream live events to your own API or WebSocket server
 
+<br><br>
+
 ## Download
 
 [**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
+<br><br>
 
 ## What it looks like
 
 <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="600" />
 
+<br><br>
 
 ## What you get
 
@@ -58,6 +64,7 @@
 
 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
+<br><br>
 
 ## Sync & integrations
 
@@ -97,6 +104,7 @@ Streams individual events as they happen:
 
 Reconnects automatically with exponential back-off (up to 5 min).
 
+<br><br>
 
 ## Privacy
 
@@ -129,6 +137,7 @@ Alternatively: right-click → **Open** → **Open** to grant a one-time excepti
 
 Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
+<br><br>
 
 ## Settings reference
 
