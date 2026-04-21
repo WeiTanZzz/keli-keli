@@ -220,45 +220,57 @@ export function DailyBarChart({
                 })}
             </div>
 
-            {/* Date labels */}
-            <div className="flex items-start gap-0.5">
-                {dayData.map(({ date }, i) => {
+            {/* Date labels — absolutely positioned so text can extend beyond bar width */}
+            <div className="relative h-3.5">
+                {(() => {
                     const n = dayData.length
-                    const isFirst = i === 0
-                    const isLast = i === n - 1
-                    const isMonthStart = date.slice(8) === "01"
+                    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+                    const fmt = (date: string) =>
+                        `${MONTHS[parseInt(date.slice(5, 7)) - 1]} ${parseInt(date.slice(8))}`
 
-                    let label: string | null = null
+                    // Build candidate labels then filter by minimum bar-index spacing
+                    const candidates: { i: number; text: string }[] = []
+
                     if (n <= 14) {
-                        label = date.slice(8) // day number only
+                        dayData.forEach(({ date }, i) =>
+                            candidates.push({ i, text: parseInt(date.slice(8)).toString() }),
+                        )
                     } else if (n <= 31) {
-                        if (isFirst || isLast || i % 7 === 0) label = date.slice(5)
+                        // First + every 7 days
+                        dayData.forEach(({ date }, i) => {
+                            if (i === 0 || i % 7 === 0) candidates.push({ i, text: fmt(date) })
+                        })
+                        // Last only if it won't crowd the previous label
+                        if (n - 1 - candidates[candidates.length - 1].i >= 4)
+                            candidates.push({ i: n - 1, text: fmt(dayData[n - 1].date) })
                     } else {
-                        if (isFirst || isLast) {
-                            label = date.slice(5)
-                        } else if (isMonthStart) {
-                            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-                            label = months[parseInt(date.slice(5, 7)) - 1]
-                        }
+                        // First date
+                        candidates.push({ i: 0, text: fmt(dayData[0].date) })
+                        // Month starts: just the month name
+                        dayData.forEach(({ date }, i) => {
+                            if (date.slice(8) === "01")
+                                candidates.push({ i, text: MONTHS[parseInt(date.slice(5, 7)) - 1] })
+                        })
+                        // Last date only if far enough from the previous label
+                        if (n - 1 - candidates[candidates.length - 1].i >= 10)
+                            candidates.push({ i: n - 1, text: fmt(dayData[n - 1].date) })
                     }
 
-                    return (
-                        <div key={date} className="flex-1 text-center">
-                            {label && (
-                                <span
-                                    className={cn(
-                                        "text-[9px] leading-none",
-                                        date === today
-                                            ? "text-indigo-500 font-medium"
-                                            : "text-zinc-400",
-                                    )}
-                                >
-                                    {label}
-                                </span>
+                    return candidates.map(({ i, text }) => (
+                        <span
+                            key={i}
+                            className={cn(
+                                "absolute -translate-x-1/2 text-[9px] leading-none whitespace-nowrap",
+                                dayData[i].date === today
+                                    ? "text-indigo-500 font-medium"
+                                    : "text-zinc-400",
                             )}
-                        </div>
-                    )
-                })}
+                            style={{ left: `${((i + 0.5) / n) * 100}%` }}
+                        >
+                            {text}
+                        </span>
+                    ))
+                })()}
             </div>
         </div>
     )
