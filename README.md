@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/WeiTanZzz/keli-keli" alt="Latest Release" /></a>
-  <img src="https://img.shields.io/badge/macOS_12%2B_%C2%B7_Apple_Silicon-black?logo=apple&logoColor=white" alt="macOS 12+ · Apple Silicon" />
+  <img src="https://img.shields.io/badge/macOS_12%2B_%C2%B7_Apple_Silicon_%26_Intel-black?logo=apple&logoColor=white" alt="macOS 12+ · Apple Silicon & Intel" />
   <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
 </p>
 
@@ -24,29 +24,33 @@
 
 <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
-## Download
+## Download 📦
 
-[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon
+[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
 
-## What you get
+## What you get 🎁
 
-**Live feedback** — A floating badge animation appears on every key press and click. Feel your activity in real time.
+⚡ **Live feedback** — A floating badge animation appears on every key press and click. Feel your activity in real time.
 
-**Customizable indicator** — Choose your indicator icon: pick any emoji or show the active app's icon. Set independent badge text for keystrokes, left clicks, and right clicks — with one-click presets or your own value.
+🎨 **Customizable indicator** — Choose your indicator icon: pick any emoji or show the active app's icon. Set independent badge text for keystrokes, left clicks, and right clicks — with one-click presets or your own value.
 
-**Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
+📊 **Daily stats at a glance** — Click the menu bar icon to see today's keystroke count. No digging through dashboards.
 
-**30-day history** — Open Settings to see your activity over the past month: keystrokes, clicks, streaks, daily averages, and your all-time count.
+📅 **30-day history** — Open Settings to see your activity over the past month: keystrokes, clicks, streaks, daily averages, and your all-time count.
 
-**Per-app breakdown** — See exactly which apps are getting the most of your time and energy.
+🔍 **Per-app breakdown** — See exactly which apps are getting the most of your time and energy.
 
-**Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
+🌙 **Dark mode** — Choose System, Light, or Dark theme in Settings → General. Takes effect instantly.
+
+🌐 **Multi-language support** — UI language auto-detected from your system, with a toggle in Settings → General.
+
+💾 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
 
-## Sync & integrations
+## Sync & integrations 🔗
 
 KeliKeli can push your activity to any HTTP endpoint or WebSocket server you control.
 
@@ -85,7 +89,7 @@ Streams individual events as they happen:
 Reconnects automatically with exponential back-off (up to 5 min).
 
 
-## Privacy
+## Privacy 🔒
 
 KeliKeli counts — it does not record. It never captures which keys you press, logs text input, or sends keystroke content anywhere. The system hook increments a counter and nothing more.
 
@@ -106,7 +110,7 @@ Both are the same issue: a quarantine flag macOS adds to internet downloads. Rem
 
 ```sh
 # On the DMG before mounting
-xattr -dr com.apple.quarantine ~/Downloads/KeliKeli_x.x.x_aarch64.dmg
+xattr -dr com.apple.quarantine ~/Downloads/KeliKeli_x.x.x_universal.dmg
 
 # Or on the installed app
 xattr -dr com.apple.quarantine /Applications/KeliKeli.app
@@ -117,19 +121,21 @@ Alternatively: right-click → **Open** → **Open** to grant a one-time excepti
 Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
 
-## Settings reference
+## Settings reference ⚙️
 
 | Setting | Description |
 |---|---|
 | Launch at startup | Auto-start when you log in |
 | Flush interval | How often activity is written to disk (seconds) |
+| Appearance | Theme: System / Light / Dark |
+| Language | UI language: English / 中文 |
 | Indicator → Icon type | Emoji (custom or preset) or active app's icon |
 | Indicator → Badge text | Independent badge labels for keystroke / left click / right click |
 | HTTP Sync | POST totals to your API on an interval |
 | WebSocket | Stream live events to a server |
 
 
-## Building from source
+## Building from source 🛠️
 
 **Prerequisites:** [Rust](https://rustup.rs) · [Node.js](https://nodejs.org) · [Tauri CLI](https://tauri.app/start/prerequisites/)
 
