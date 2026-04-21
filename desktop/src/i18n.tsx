@@ -11,8 +11,18 @@ function detectLang(): Lang {
 }
 
 const MONTHS_EN = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
 ]
 
 export type Translations = {
@@ -133,7 +143,8 @@ const translations: Record<Lang, Translations> = {
         },
         dialog: {
             restartRequired: "Restart required",
-            restartDesc: "Connection settings take effect after a restart. Save and reopen now?",
+            restartDesc:
+                "Connection settings take effect after a restart. Save and reopen now?",
         },
         stats: {
             today: "Today",

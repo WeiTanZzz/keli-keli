@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import type { AppClickStat, AppStat, DayStat } from "@/api"
-import { cn } from "@/lib/utils"
 import { useT } from "@/i18n"
+import { cn } from "@/lib/utils"
 import { AppIcon, useAppDisplayName } from "./AppIcon"
 import { computeAppTotals, localDateStr } from "./helpers"
 import { Tip } from "./ui"

@@ -289,7 +289,9 @@ export default function Settings() {
                                     )}
                                 >
                                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="flex-1">{t.nav[item.id]}</span>
+                                    <span className="flex-1">
+                                        {t.nav[item.id]}
+                                    </span>
                                     {item.id === "about" &&
                                         update.status === "available" && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />

@@ -10,8 +10,8 @@ import type {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { cn } from "@/lib/utils"
 import { type Lang, useT } from "@/i18n"
+import { cn } from "@/lib/utils"
 import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
 import { computeStreak, localDateStr } from "./helpers"
 import { Card, FormRow, SectionTitle, StatChip } from "./ui"
@@ -453,7 +453,9 @@ export function IndicatorSection({
                                         : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
                                 }`}
                             >
-                                {type === "emoji" ? t.indicator.emoji : t.indicator.activeApp}
+                                {type === "emoji"
+                                    ? t.indicator.emoji
+                                    : t.indicator.activeApp}
                             </button>
                         ))}
                     </div>
@@ -689,7 +691,9 @@ export function AboutSection({
             <Card>
                 <FormRow label={t.about.version}>
                     {update.status === "checking" && (
-                        <span className="text-xs text-zinc-400">{t.about.checking}</span>
+                        <span className="text-xs text-zinc-400">
+                            {t.about.checking}
+                        </span>
                     )}
                     {update.status === "latest" && (
                         <span className="text-xs text-zinc-400">
