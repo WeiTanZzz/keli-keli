@@ -15,7 +15,7 @@
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/WeiTanZzz/keli-keli" alt="Latest Release" /></a>
   <img src="https://img.shields.io/badge/macOS-12%2B-black?logo=apple" alt="macOS 12+" />
-  <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-black?logo=apple&logoColor=white" alt="Apple Silicon & Intel" />
+  <img src="https://img.shields.io/badge/Apple_Silicon-black?logo=apple&logoColor=white" alt="Apple Silicon" />
   <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
 </p>
 
@@ -30,14 +30,14 @@
 
 ## Download
 
-[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
+[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
 
 ## What it looks like
 
-<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" style="border-radius: 12px" />
+<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
 
 ## What you get
