@@ -62,12 +62,8 @@ pub(super) fn start() {
                 hmod: *mut c_void,
                 dw_thread_id: u32,
             ) -> HHOOK;
-            fn CallNextHookEx(
-                hhk: HHOOK,
-                n_code: i32,
-                w_param: WPARAM,
-                l_param: LPARAM,
-            ) -> LRESULT;
+            fn CallNextHookEx(hhk: HHOOK, n_code: i32, w_param: WPARAM, l_param: LPARAM)
+                -> LRESULT;
             fn UnhookWindowsHookEx(hhk: HHOOK) -> i32;
             fn GetMessageW(
                 lp_msg: *mut Msg,
@@ -165,10 +161,8 @@ pub(super) fn start() {
         }
 
         unsafe {
-            let kb_hook =
-                SetWindowsHookExW(WH_KEYBOARD_LL, keyboard_proc, std::ptr::null_mut(), 0);
-            let ms_hook =
-                SetWindowsHookExW(WH_MOUSE_LL, mouse_proc, std::ptr::null_mut(), 0);
+            let kb_hook = SetWindowsHookExW(WH_KEYBOARD_LL, keyboard_proc, std::ptr::null_mut(), 0);
+            let ms_hook = SetWindowsHookExW(WH_MOUSE_LL, mouse_proc, std::ptr::null_mut(), 0);
 
             if kb_hook.is_null() || ms_hook.is_null() {
                 return;

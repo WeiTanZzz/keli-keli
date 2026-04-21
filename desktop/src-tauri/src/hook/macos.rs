@@ -174,8 +174,7 @@ pub(super) fn start() {
 
         loop {
             unsafe {
-                let tap =
-                    CGEventTapCreate(0, 0, 1, EVENT_MASK, tap_callback, std::ptr::null_mut());
+                let tap = CGEventTapCreate(0, 0, 1, EVENT_MASK, tap_callback, std::ptr::null_mut());
                 if tap.is_null() {
                     static PROMPTED: std::sync::atomic::AtomicBool =
                         std::sync::atomic::AtomicBool::new(false);
