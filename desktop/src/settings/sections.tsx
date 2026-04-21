@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type {
     AllTimeCounts,
     AppClickStat,
@@ -144,13 +144,18 @@ export function StatisticsSection({
         { from: Date; to: Date } | undefined
     >(undefined)
 
-    // calendarRange: live selection state inside the calendar.
-    // Reset to undefined each time the popover opens so react-day-picker
-    // always starts fresh — this ensures the first click is always "from",
-    // never "shorten an existing range", which enables the hover-preview UX.
+    // calendarRange: live selection state passed directly to Calendar.
     const [calendarRange, setCalendarRange] = useState<DateRange | undefined>(
         undefined,
     )
+
+    // Auto-apply and close when user completes a range (both from and to set).
+    useEffect(() => {
+        if (calendarRange?.from && calendarRange?.to) {
+            setAppliedRange({ from: calendarRange.from, to: calendarRange.to })
+            setPopoverOpen(false)
+        }
+    }, [calendarRange])
 
     const isCustom = appliedRange != null
 
@@ -174,14 +179,6 @@ export function StatisticsSection({
         setPreset(p)
         setAppliedRange(undefined)
         setCalendarRange(undefined)
-    }
-
-    const handleCalendarSelect = (range: DateRange | undefined) => {
-        setCalendarRange(range)
-        if (range?.from && range?.to) {
-            setAppliedRange({ from: range.from, to: range.to })
-            setPopoverOpen(false)
-        }
     }
 
     const histStats = useMemo(
@@ -336,8 +333,7 @@ export function StatisticsSection({
                             open={popoverOpen}
                             onOpenChange={(open) => {
                                 setPopoverOpen(open)
-                                // Always start fresh so first click = from, enabling hover preview
-                                setCalendarRange(undefined)
+                                if (open) setCalendarRange(undefined)
                             }}
                         >
                             <PopoverTrigger asChild>
@@ -359,7 +355,7 @@ export function StatisticsSection({
                                 <Calendar
                                     mode="range"
                                     selected={calendarRange}
-                                    onSelect={handleCalendarSelect}
+                                    onSelect={setCalendarRange}
                                     disabled={{ after: dateFromStr(today) }}
                                     numberOfMonths={1}
                                 />
