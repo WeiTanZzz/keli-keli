@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import type { AppClickStat, AppStat, DayStat } from "@/api"
+import { useT } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { AppIcon, useAppDisplayName } from "./AppIcon"
 import { computeAppTotals, localDateStr } from "./helpers"
@@ -20,6 +21,7 @@ export function AppRow({
     right: number
     max: number
 }) {
+    const { t } = useT()
     const displayName = useAppDisplayName(app)
     const clicks = left + right
     const total = keys + clicks
@@ -31,19 +33,19 @@ export function AppRow({
                     {keys > 0 && (
                         <span className="flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
-                            {keys.toLocaleString()} keys
+                            {keys.toLocaleString()} {t.chart.keys}
                         </span>
                     )}
                     {left > 0 && (
                         <span className="flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                            {left.toLocaleString()} L
+                            {left.toLocaleString()} {t.chart.left}
                         </span>
                     )}
                     {right > 0 && (
                         <span className="flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-600" />
-                            {right.toLocaleString()} R
+                            {right.toLocaleString()} {t.chart.right}
                         </span>
                     )}
                 </span>
@@ -105,6 +107,7 @@ export function DailyBarChart({
     rangeStart?: string
     rangeEnd?: string
 }) {
+    const { t } = useT()
     const today = localDateStr()
 
     const keyMap = useMemo(
@@ -155,12 +158,12 @@ export function DailyBarChart({
                 <span className="text-zinc-400 tabular-nums">{infoDate}</span>
                 <span className="flex items-center gap-1 text-zinc-500">
                     <span className="inline-block w-1.5 h-1.5 rounded-sm bg-indigo-400" />
-                    {infoKeys.toLocaleString()} keys
+                    {infoKeys.toLocaleString()} {t.chart.keys}
                 </span>
                 {infoClicks > 0 && (
                     <span className="flex items-center gap-1 text-zinc-500">
                         <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
-                        {infoClicks.toLocaleString()} clicks
+                        {infoClicks.toLocaleString()} {t.chart.clicks}
                     </span>
                 )}
             </div>
@@ -232,22 +235,11 @@ export function DailyBarChart({
             <div className="relative h-3.5">
                 {(() => {
                     const n = dayData.length
-                    const MONTHS = [
-                        "Jan",
-                        "Feb",
-                        "Mar",
-                        "Apr",
-                        "May",
-                        "Jun",
-                        "Jul",
-                        "Aug",
-                        "Sep",
-                        "Oct",
-                        "Nov",
-                        "Dec",
-                    ]
                     const fmt = (date: string) =>
-                        `${MONTHS[parseInt(date.slice(5, 7), 10) - 1]} ${parseInt(date.slice(8), 10)}`
+                        t.chart.fmtDate(
+                            parseInt(date.slice(5, 7), 10) - 1,
+                            parseInt(date.slice(8), 10),
+                        )
 
                     // Build candidate labels then filter by minimum bar-index spacing
                     const candidates: { i: number; text: string }[] = []
@@ -282,9 +274,9 @@ export function DailyBarChart({
                             if (date.slice(8) === "01")
                                 candidates.push({
                                     i,
-                                    text: MONTHS[
-                                        parseInt(date.slice(5, 7), 10) - 1
-                                    ],
+                                    text: t.chart.fmtMonth(
+                                        parseInt(date.slice(5, 7), 10) - 1,
+                                    ),
                                 })
                         })
                         // Last date only if far enough from the previous label
@@ -364,10 +356,12 @@ export function TodayByApp({
 
     const max = Math.max(...merged.map((d) => d.keys + d.left + d.right), 1)
 
+    const { t } = useT()
+
     if (merged.length === 0) {
         return (
             <p className="text-xs text-zinc-400 text-center py-1">
-                No activity yet — start typing!
+                {t.stats.noActivity}
             </p>
         )
     }
@@ -432,10 +426,12 @@ export function AppBreakdownRows({
 
     const max = Math.max(...merged.map((d) => d.keys + d.left + d.right), 1)
 
+    const { t } = useT()
+
     if (merged.length === 0) {
         return (
             <p className="text-xs text-zinc-400 text-center py-1">
-                No data for this period.
+                {t.stats.noData}
             </p>
         )
     }
@@ -445,11 +441,11 @@ export function AppBreakdownRows({
             <div className="flex items-center justify-end gap-2.5 text-[10px] text-zinc-400">
                 <span className="flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-sm bg-indigo-400" />
-                    Keys
+                    {t.chart.keysLabel}
                 </span>
                 <span className="flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-sm bg-rose-400" />
-                    Clicks
+                    {t.chart.clicksLabel}
                 </span>
             </div>
             <div className="flex flex-col gap-2">
@@ -480,6 +476,7 @@ export function AppBreakdownChart({
     appStats: AppStat[]
     clickStats: AppClickStat[]
 }) {
+    const { t } = useT()
     const [period, setPeriod] = useState<AppPeriod>("day")
 
     const filterByPeriod = useMemo(() => {
@@ -571,18 +568,18 @@ export function AppBreakdownChart({
                 <div className="flex items-center gap-2.5 text-[10px] text-zinc-400">
                     <span className="flex items-center gap-1">
                         <span className="inline-block w-2 h-2 rounded-sm bg-indigo-400" />
-                        Keys
+                        {t.chart.keysLabel}
                     </span>
                     <span className="flex items-center gap-1">
                         <span className="inline-block w-2 h-2 rounded-sm bg-rose-400" />
-                        Clicks
+                        {t.chart.clicksLabel}
                     </span>
                 </div>
             </div>
 
             {merged.length === 0 ? (
                 <p className="text-xs text-zinc-400 text-center py-1">
-                    No data yet — start typing!
+                    {t.stats.noDataYet}
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">

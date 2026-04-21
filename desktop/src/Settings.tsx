@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { applyTheme, getTheme, saveTheme, type Theme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
+import { useT } from "./i18n"
 import { localDateStr } from "./settings/helpers"
 import {
     AboutSection,
@@ -28,12 +29,12 @@ import {
 
 type NavId = "statistics" | "general" | "indicator" | "connections" | "about"
 
-const NAV_ITEMS: { id: NavId; label: string; icon: React.ElementType }[] = [
-    { id: "statistics", label: "Statistics", icon: BarChart2 },
-    { id: "general", label: "General", icon: Settings2 },
-    { id: "indicator", label: "Indicator", icon: Keyboard },
-    { id: "connections", label: "Connections", icon: Cable },
-    { id: "about", label: "About", icon: Info },
+const NAV_ITEMS: { id: NavId; icon: React.ElementType }[] = [
+    { id: "statistics", icon: BarChart2 },
+    { id: "general", icon: Settings2 },
+    { id: "indicator", icon: Keyboard },
+    { id: "connections", icon: Cable },
+    { id: "about", icon: Info },
 ]
 
 // ─── TitleBar ─────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ function TitleBar() {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
+    const { t } = useT()
     const [cfg, setCfg] = useState<Config | null>(null)
     const [autostart, setAutostart] = useState(false)
     const [stats, setStats] = useState<DayStat[]>([])
@@ -206,12 +208,7 @@ export default function Settings() {
                     setUpdate({ status: "latest", version: info.current })
                 }
             })
-            .catch(() =>
-                setUpdate({
-                    status: "error",
-                    message: "Could not reach update server",
-                }),
-            )
+            .catch(() => setUpdate({ status: "error" }))
 
         // Listen for background update check result (emitted by Rust at startup)
         const unlistenUpdate = listen<{ current: string; latest: string }>(
@@ -308,7 +305,9 @@ export default function Settings() {
                                     )}
                                 >
                                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="flex-1">{item.label}</span>
+                                    <span className="flex-1">
+                                        {t.nav[item.id]}
+                                    </span>
                                     {item.id === "about" &&
                                         update.status === "available" && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
@@ -385,7 +384,7 @@ export default function Settings() {
                                     variant={saved ? "success" : "default"}
                                     onClick={handleSave}
                                 >
-                                    {saved ? "Saved ✓" : "Save"}
+                                    {saved ? t.btn.saved : t.btn.save}
                                 </Button>
                             </div>
                         </>
@@ -398,11 +397,10 @@ export default function Settings() {
                     <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl w-72 p-5 flex flex-col gap-4">
                         <div className="flex flex-col gap-1">
                             <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                                Restart required
+                                {t.dialog.restartRequired}
                             </span>
                             <span className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                Connection settings take effect after a restart.
-                                Save and reopen now?
+                                {t.dialog.restartDesc}
                             </span>
                         </div>
                         <div className="flex gap-2">
@@ -412,14 +410,14 @@ export default function Settings() {
                                 className="flex-1"
                                 onClick={() => setShowRestartDialog(false)}
                             >
-                                Cancel
+                                {t.btn.cancel}
                             </Button>
                             <Button
                                 size="sm"
                                 className="flex-1"
                                 onClick={handleSaveAndRestart}
                             >
-                                Save & Reopen
+                                {t.btn.saveAndReopen}
                             </Button>
                         </div>
                     </div>

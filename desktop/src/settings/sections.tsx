@@ -10,6 +10,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { type Lang, useT } from "@/i18n"
 import type { Theme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
@@ -39,6 +40,7 @@ export function StatisticsSection({
     clickStats: AppClickStat[]
     allTimeCounts: AllTimeCounts | null
 }) {
+    const { t } = useT()
     const today = localDateStr()
     const yesterday = localDateStr(new Date(Date.now() - 86400000))
 
@@ -153,7 +155,7 @@ export function StatisticsSection({
             {/* ── Section 1: Today ── */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <SectionTitle>Today</SectionTitle>
+                    <SectionTitle>{t.stats.today}</SectionTitle>
                     {trendPct !== null && (
                         <span
                             className={cn(
@@ -164,7 +166,7 @@ export function StatisticsSection({
                             )}
                         >
                             {trendPct >= 0 ? "↑" : "↓"}&nbsp;
-                            {Math.abs(trendPct)}% vs yesterday
+                            {Math.abs(trendPct)}% {t.stats.vsYesterday}
                         </span>
                     )}
                 </div>
@@ -172,30 +174,30 @@ export function StatisticsSection({
                     <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-700">
                         <div className="flex flex-col gap-1 px-4 py-4">
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
-                                Total
+                                {t.stats.total}
                             </span>
                             <span className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayTotal)}
                             </span>
                             <span className="text-[10px] text-zinc-400 mt-0.5">
-                                actions today
+                                {t.stats.actionsToday}
                             </span>
                         </div>
                         <div className="flex flex-col gap-1 px-4 py-4">
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
-                                Keystrokes
+                                {t.stats.keystrokes}
                             </span>
                             <span className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayKeys)}
                             </span>
                             <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-sm bg-indigo-400 inline-block shrink-0" />
-                                keys
+                                {t.stats.keys}
                             </span>
                         </div>
                         <div className="flex flex-col gap-1 px-4 py-4">
                             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
-                                Clicks
+                                {t.stats.clicks}
                             </span>
                             <span className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 tabular-nums leading-tight mt-1">
                                 {fmtNum(todayClicks)}
@@ -203,8 +205,8 @@ export function StatisticsSection({
                             <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-sm bg-rose-400 inline-block shrink-0" />
                                 {todayClicks > 0
-                                    ? `${todayLeft}L · ${todayRight}R`
-                                    : "no clicks"}
+                                    ? `${todayLeft}${t.chart.left} · ${todayRight}${t.chart.right}`
+                                    : t.stats.noClicks}
                             </span>
                         </div>
                     </div>
@@ -220,16 +222,16 @@ export function StatisticsSection({
 
             {/* ── Section 2: Summary (all-time, not range-dependent) ── */}
             <div className="flex flex-col gap-2">
-                <SectionTitle>Summary</SectionTitle>
+                <SectionTitle>{t.stats.summary}</SectionTitle>
                 <Card>
                     <div className="grid grid-cols-4 divide-x divide-zinc-100 dark:divide-zinc-700">
                         <StatChip
-                            label="Daily avg"
+                            label={t.stats.dailyAvg}
                             value={fmtNum(allTimeAvg)}
-                            sub="actions"
+                            sub={t.stats.actions}
                         />
                         <StatChip
-                            label="Best day"
+                            label={t.stats.bestDay}
                             value={fmtNum(allTimeBestDay.total)}
                             sub={
                                 allTimeBestDay.date
@@ -238,18 +240,18 @@ export function StatisticsSection({
                             }
                         />
                         <StatChip
-                            label="Streak"
+                            label={t.stats.streak}
                             value={streak > 0 ? `${streak}d` : "—"}
-                            sub={streak > 0 ? "in a row" : "no streak"}
+                            sub={streak > 0 ? t.stats.inARow : t.stats.noStreak}
                         />
                         <StatChip
-                            label="All time"
+                            label={t.stats.allTime}
                             value={
                                 allTimeTotal === null
                                     ? "—"
                                     : fmtNum(allTimeTotal)
                             }
-                            sub="actions"
+                            sub={t.stats.actions}
                         />
                     </div>
                 </Card>
@@ -258,7 +260,7 @@ export function StatisticsSection({
             {/* ── Section 3: Explore (chart + By App share the same date range) ── */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <SectionTitle>Explore</SectionTitle>
+                    <SectionTitle>{t.stats.explore}</SectionTitle>
                     {/* Range controls: preset chips + calendar picker */}
                     <div className="flex items-center gap-1.5">
                         {presets.map(({ id, label }) => (
@@ -293,7 +295,7 @@ export function StatisticsSection({
                     {/* By App — same date range */}
                     <div className="px-4 pt-3 pb-4 border-t border-zinc-100 dark:border-zinc-700">
                         <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
-                            By App
+                            {t.stats.byApp}
                         </p>
                         <AppBreakdownRows
                             appStats={histAppStats}
@@ -360,11 +362,7 @@ function BadgeRow({
     )
 }
 
-const THEME_OPTIONS: { id: Theme; label: string }[] = [
-    { id: "system", label: "System" },
-    { id: "light", label: "Light" },
-    { id: "dark", label: "Dark" },
-]
+const THEME_IDS: Theme[] = ["system", "light", "dark"]
 
 export function GeneralSection({
     autostart,
@@ -381,40 +379,69 @@ export function GeneralSection({
     onTheme: (t: Theme) => void
     onFlushInterval: (v: string) => void
 }) {
+    const { t, lang, setLang } = useT()
     return (
         <div className="flex flex-col gap-4">
-            <SectionTitle>General</SectionTitle>
+            <SectionTitle>{t.general.title}</SectionTitle>
             <Card>
                 <FormRow
-                    label="Appearance"
-                    description="Choose your preferred color scheme"
+                    label={t.general.language}
+                    description={t.general.languageDesc}
                 >
                     <div className="flex gap-1">
-                        {THEME_OPTIONS.map(({ id, label }) => (
+                        {(["en", "zh"] as Lang[]).map((l) => (
                             <button
-                                key={id}
+                                key={l}
                                 type="button"
-                                onClick={() => onTheme(id)}
+                                onClick={() => setLang(l)}
                                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    theme === id
+                                    lang === l
                                         ? "bg-indigo-500 text-white"
                                         : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                                 }`}
                             >
-                                {label}
+                                {t.lang[l]}
                             </button>
                         ))}
                     </div>
                 </FormRow>
                 <FormRow
-                    label="Launch at startup"
-                    description="Start KeliKeli when you log in"
+                    label={t.general.appearance}
+                    description={t.general.appearanceDesc}
+                >
+                    <div className="flex gap-1">
+                        {THEME_IDS.map((id) => {
+                            const themeLabel = {
+                                system: t.general.themeSystem,
+                                light: t.general.themeLight,
+                                dark: t.general.themeDark,
+                            }[id]
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => onTheme(id)}
+                                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                        theme === id
+                                            ? "bg-indigo-500 text-white"
+                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                                    }`}
+                                >
+                                    {themeLabel}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </FormRow>
+                <FormRow
+                    label={t.general.launchAtStartup}
+                    description={t.general.launchDesc}
                 >
                     <Switch checked={autostart} onCheckedChange={onAutostart} />
                 </FormRow>
                 <FormRow
-                    label="Flush interval"
-                    description="How often to save data (seconds)"
+                    label={t.general.flushInterval}
+                    description={t.general.flushDesc}
                 >
                     <Input
                         type="number"
@@ -437,30 +464,33 @@ export function IndicatorSection({
     cfg: Config
     onIndicator: (patch: Partial<IndicatorConfig>) => void
 }) {
+    const { t } = useT()
     const ind = cfg.indicator
 
     return (
         <div className="flex flex-col gap-4">
-            <SectionTitle>Indicator</SectionTitle>
+            <SectionTitle>{t.indicator.title}</SectionTitle>
             <Card>
                 {/* Icon type toggle */}
                 <FormRow
-                    label="Icon"
-                    description="What to show in the floating window"
+                    label={t.indicator.icon}
+                    description={t.indicator.iconDesc}
                 >
                     <div className="flex gap-1">
-                        {(["emoji", "active_app"] as const).map((t) => (
+                        {(["emoji", "active_app"] as const).map((type) => (
                             <button
-                                key={t}
+                                key={type}
                                 type="button"
-                                onClick={() => onIndicator({ icon_type: t })}
+                                onClick={() => onIndicator({ icon_type: type })}
                                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    ind.icon_type === t
+                                    ind.icon_type === type
                                         ? "bg-indigo-500 text-white"
                                         : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                                 }`}
                             >
-                                {t === "emoji" ? "Emoji" : "Active App"}
+                                {type === "emoji"
+                                    ? t.indicator.emoji
+                                    : t.indicator.activeApp}
                             </button>
                         ))}
                     </div>
@@ -469,8 +499,8 @@ export function IndicatorSection({
                 {/* Emoji picker — only shown when icon_type = "emoji" */}
                 {ind.icon_type === "emoji" && (
                     <FormRow
-                        label="Emoji"
-                        description="Type any emoji or pick a preset"
+                        label={t.indicator.emojiLabel}
+                        description={t.indicator.emojiDesc}
                     >
                         <div className="flex flex-col gap-2 items-end">
                             <Input
@@ -504,22 +534,22 @@ export function IndicatorSection({
                 )}
             </Card>
 
-            <SectionTitle>Badges</SectionTitle>
+            <SectionTitle>{t.indicator.badges}</SectionTitle>
             <Card>
                 <BadgeRow
-                    label="Keystroke"
+                    label={t.indicator.keystroke}
                     value={ind.badge_keystroke}
                     presets={BADGE_PRESETS.keystroke}
                     onChange={(v) => onIndicator({ badge_keystroke: v })}
                 />
                 <BadgeRow
-                    label="Left click"
+                    label={t.indicator.leftClick}
                     value={ind.badge_left_click}
                     presets={BADGE_PRESETS.left_click}
                     onChange={(v) => onIndicator({ badge_left_click: v })}
                 />
                 <BadgeRow
-                    label="Right click"
+                    label={t.indicator.rightClick}
                     value={ind.badge_right_click}
                     presets={BADGE_PRESETS.right_click}
                     onChange={(v) => onIndicator({ badge_right_click: v })}
@@ -563,12 +593,14 @@ export function ConnectionsSection({
         await writeTextFile(path, JSON.stringify(data, null, 2))
     }
 
+    const { t } = useT()
+
     return (
         <div className="flex flex-col gap-6">
             {/* HTTP Sync */}
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                    <SectionTitle>HTTP Sync</SectionTitle>
+                    <SectionTitle>{t.connections.httpSync}</SectionTitle>
                     <Switch
                         checked={cfg.sync.enabled}
                         onCheckedChange={(v) => onUpdateSync({ enabled: v })}
@@ -576,7 +608,7 @@ export function ConnectionsSection({
                 </div>
                 {cfg.sync.enabled && (
                     <Card>
-                        <FormRow label="API URL">
+                        <FormRow label={t.connections.apiUrl}>
                             <Input
                                 value={cfg.sync.api_url}
                                 onChange={(e) =>
@@ -585,7 +617,7 @@ export function ConnectionsSection({
                                 placeholder="https://..."
                             />
                         </FormRow>
-                        <FormRow label="API Key">
+                        <FormRow label={t.connections.apiKey}>
                             <Input
                                 value={cfg.sync.api_key}
                                 onChange={(e) =>
@@ -595,7 +627,7 @@ export function ConnectionsSection({
                                 type="password"
                             />
                         </FormRow>
-                        <FormRow label="Sync interval (s)">
+                        <FormRow label={t.connections.syncInterval}>
                             <Input
                                 type="number"
                                 value={cfg.sync.interval_secs}
@@ -613,7 +645,7 @@ export function ConnectionsSection({
             {/* WebSocket */}
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                    <SectionTitle>WebSocket</SectionTitle>
+                    <SectionTitle>{t.connections.websocket}</SectionTitle>
                     <Switch
                         checked={cfg.websocket.enabled}
                         onCheckedChange={(v) => onUpdateWs({ enabled: v })}
@@ -621,7 +653,7 @@ export function ConnectionsSection({
                 </div>
                 {cfg.websocket.enabled && (
                     <Card>
-                        <FormRow label="WS URL">
+                        <FormRow label={t.connections.wsUrl}>
                             <Input
                                 value={cfg.websocket.ws_url}
                                 onChange={(e) =>
@@ -630,7 +662,7 @@ export function ConnectionsSection({
                                 placeholder="wss://..."
                             />
                         </FormRow>
-                        <FormRow label="Idle timeout (ms)">
+                        <FormRow label={t.connections.idleTimeout}>
                             <Input
                                 type="number"
                                 value={cfg.websocket.typing_idle_ms}
@@ -647,18 +679,18 @@ export function ConnectionsSection({
 
             {/* Export */}
             <div className="flex flex-col gap-3">
-                <SectionTitle>Export</SectionTitle>
+                <SectionTitle>{t.connections.export}</SectionTitle>
                 <Card>
                     <FormRow
-                        label="Export data"
-                        description="Download all your stats as JSON"
+                        label={t.connections.exportData}
+                        description={t.connections.exportDesc}
                     >
                         <Button
                             size="sm"
                             variant="outline"
                             onClick={handleExport}
                         >
-                            Export
+                            {t.btn.export}
                         </Button>
                     </FormRow>
                 </Card>
@@ -674,7 +706,7 @@ export type UpdateState =
     | { status: "latest"; version: string }
     | { status: "available"; current: string; latest: string }
     | { status: "installing" }
-    | { status: "error"; message: string }
+    | { status: "error"; message?: string }
 
 export function AboutSection({
     update,
@@ -687,17 +719,20 @@ export function AboutSection({
     onInstall: () => void
     onAutoUpdate: (v: boolean) => void
 }) {
+    const { t } = useT()
     return (
         <div className="flex flex-col gap-4">
-            <SectionTitle>About</SectionTitle>
+            <SectionTitle>{t.about.title}</SectionTitle>
             <Card>
-                <FormRow label="Version">
+                <FormRow label={t.about.version}>
                     {update.status === "checking" && (
-                        <span className="text-xs text-zinc-400">Checking…</span>
+                        <span className="text-xs text-zinc-400">
+                            {t.about.checking}
+                        </span>
                     )}
                     {update.status === "latest" && (
                         <span className="text-xs text-zinc-400">
-                            v{update.version} · Up to date
+                            v{update.version} · {t.about.upToDate}
                         </span>
                     )}
                     {update.status === "available" && (
@@ -706,24 +741,24 @@ export function AboutSection({
                                 v{update.current}
                             </span>
                             <Button size="sm" onClick={onInstall}>
-                                Update to v{update.latest}
+                                {t.about.updateTo} v{update.latest}
                             </Button>
                         </div>
                     )}
                     {update.status === "installing" && (
                         <span className="text-xs text-indigo-500">
-                            Installing, restarting shortly…
+                            {t.about.installing}
                         </span>
                     )}
                     {update.status === "error" && (
                         <span className="text-xs text-red-500">
-                            {update.message}
+                            {update.message ?? t.about.errorServer}
                         </span>
                     )}
                 </FormRow>
                 <FormRow
-                    label="Auto-update"
-                    description="Automatically install updates at launch"
+                    label={t.about.autoUpdate}
+                    description={t.about.autoUpdateDesc}
                 >
                     <Switch
                         checked={cfg.auto_update}
