@@ -10,9 +10,20 @@ import type {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { AppBreakdownChart, DailyBarChart, Last7DaysChart } from "./charts"
+import { cn } from "@/lib/utils"
+import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
 import { computeStreak, localDateStr } from "./helpers"
 import { Card, FormRow, SectionTitle, StatChip } from "./ui"
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function fmtNum(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+    return n.toLocaleString()
+}
+
+type Preset = "7d" | "30d" | "90d"
 
 // ─── StatisticsSection ────────────────────────────────────────────────────────
 
@@ -27,12 +38,43 @@ export function StatisticsSection({
     clickStats: AppClickStat[]
     allTimeCounts: AllTimeCounts | null
 }) {
-    const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const today = localDateStr()
     const yesterday = localDateStr(new Date(Date.now() - 86400000))
 
-    // Daily click totals (left + right) per date
-    const dailyClicks = useMemo(() => {
+    // ── Today ──────────────────────────────────────────────────────────────────
+    const todayKeys = stats.find((s) => s.date === today)?.count ?? 0
+
+    const { todayLeft, todayRight } = useMemo(() => {
+        let left = 0
+        let right = 0
+        for (const s of clickStats) {
+            if (s.date === today) {
+                left += s.left_clicks
+                right += s.right_clicks
+            }
+        }
+        return { todayLeft: left, todayRight: right }
+    }, [clickStats, today])
+
+    const todayClicks = todayLeft + todayRight
+    const todayTotal = todayKeys + todayClicks
+
+    const yesterdayTotal = useMemo(() => {
+        const keys = stats.find((s) => s.date === yesterday)?.count ?? 0
+        let clicks = 0
+        for (const s of clickStats) {
+            if (s.date === yesterday) clicks += s.left_clicks + s.right_clicks
+        }
+        return keys + clicks
+    }, [stats, clickStats, yesterday])
+
+    const trendPct =
+        yesterdayTotal > 0
+            ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100)
+            : null
+
+    // ── All-time summary stats (not range-dependent) ───────────────────────────
+    const allDailyClicks = useMemo(() => {
         const m = new Map<string, number>()
         for (const s of clickStats) {
             m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
@@ -40,83 +82,30 @@ export function StatisticsSection({
         return m
     }, [clickStats])
 
-    const todayTotal = useMemo(
-        () =>
-            (stats.find((s) => s.date === today)?.count ?? 0) +
-            (dailyClicks.get(today) ?? 0),
-        [stats, dailyClicks, today],
-    )
-    const yesterdayTotal = useMemo(
-        () =>
-            (stats.find((s) => s.date === yesterday)?.count ?? 0) +
-            (dailyClicks.get(yesterday) ?? 0),
-        [stats, dailyClicks, yesterday],
-    )
-
-    // Hero: keys + clicks for selected date (or today)
-    const isViewingToday = selectedDate === null || selectedDate === today
-    const heroCount = useMemo(() => {
-        if (isViewingToday) return todayTotal
-        const d = selectedDate ?? today
-        return (
-            (stats.find((s) => s.date === d)?.count ?? 0) +
-            (dailyClicks.get(d) ?? 0)
-        )
-    }, [stats, dailyClicks, selectedDate, isViewingToday, todayTotal, today])
-
-    // Trend: compare total activity (keys + clicks)
-    const trendPct = useMemo(() => {
-        if (isViewingToday) {
-            return yesterdayTotal > 0
-                ? Math.round(
-                      ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100,
-                  )
-                : null
-        }
-        return todayTotal > 0
-            ? Math.round(((heroCount - todayTotal) / todayTotal) * 100)
-            : null
-    }, [isViewingToday, todayTotal, yesterdayTotal, heroCount])
-
-    const heroLabel = isViewingToday
-        ? "actions today"
-        : `actions · ${selectedDate}`
-
-    // All-dates total actions (keys + clicks) per date
-    const dailyTotals = useMemo(() => {
-        const allDates = new Set([
+    const allDailyTotals = useMemo(() => {
+        const dates = new Set([
             ...stats.map((s) => s.date),
-            ...dailyClicks.keys(),
+            ...allDailyClicks.keys(),
         ])
-        return Array.from(allDates).map((date) => ({
+        return Array.from(dates).map((date) => ({
             date,
             total:
                 (stats.find((s) => s.date === date)?.count ?? 0) +
-                (dailyClicks.get(date) ?? 0),
+                (allDailyClicks.get(date) ?? 0),
         }))
-    }, [stats, dailyClicks])
+    }, [stats, allDailyClicks])
 
-    const daysWithData = useMemo(
-        () => dailyTotals.filter((d) => d.total > 0),
-        [dailyTotals],
-    )
-    const avgCount = useMemo(
-        () =>
-            daysWithData.length > 0
-                ? Math.round(
-                      daysWithData.reduce((sum, d) => sum + d.total, 0) /
-                          daysWithData.length,
-                  )
-                : 0,
-        [daysWithData],
-    )
-    const bestDay = useMemo(
-        () =>
-            dailyTotals.reduce((best, d) => (d.total > best.total ? d : best), {
-                date: "",
-                total: 0,
-            }),
-        [dailyTotals],
+    const allDaysWithData = allDailyTotals.filter((d) => d.total > 0)
+    const allTimeAvg =
+        allDaysWithData.length > 0
+            ? Math.round(
+                  allDaysWithData.reduce((s, d) => s + d.total, 0) /
+                      allDaysWithData.length,
+              )
+            : 0
+    const allTimeBestDay = allDailyTotals.reduce(
+        (best, d) => (d.total > best.total ? d : best),
+        { date: "", total: 0 },
     )
     const streak = useMemo(() => computeStreak(stats), [stats])
     const allTimeTotal = allTimeCounts
@@ -125,74 +114,126 @@ export function StatisticsSection({
           allTimeCounts.right_clicks
         : null
 
+    // ── Explore range ─────────────────────────────────────────────────────────
+    const [preset, setPreset] = useState<Preset>("30d")
+
+    const { startDate, endDate } = useMemo(() => {
+        const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90
+        return {
+            startDate: localDateStr(
+                new Date(Date.now() - (days - 1) * 86400000),
+            ),
+            endDate: today,
+        }
+    }, [preset, today])
+
+    const histStats = useMemo(
+        () => stats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [stats, startDate, endDate],
+    )
+    const histClicks = useMemo(
+        () =>
+            clickStats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [clickStats, startDate, endDate],
+    )
+    const histAppStats = useMemo(
+        () => appStats.filter((s) => s.date >= startDate && s.date <= endDate),
+        [appStats, startDate, endDate],
+    )
+
+    const presets: { id: Preset; label: string }[] = [
+        { id: "7d", label: "7d" },
+        { id: "30d", label: "30d" },
+        { id: "90d", label: "90d" },
+    ]
+
     return (
         <div className="flex flex-col gap-6">
-            {/* Hero + 30-day chart */}
+            {/* ── Section 1: Today ── */}
             <div className="flex flex-col gap-2">
-                <SectionTitle>Activity</SectionTitle>
+                <div className="flex items-center justify-between">
+                    <SectionTitle>Today</SectionTitle>
+                    {trendPct !== null && (
+                        <span
+                            className={cn(
+                                "text-[11px] font-medium",
+                                trendPct >= 0
+                                    ? "text-emerald-500"
+                                    : "text-red-400",
+                            )}
+                        >
+                            {trendPct >= 0 ? "↑" : "↓"}&nbsp;
+                            {Math.abs(trendPct)}% vs yesterday
+                        </span>
+                    )}
+                </div>
                 <Card>
-                    <div className="px-4 pt-4 pb-3 flex flex-col gap-3">
-                        <div className="flex items-baseline justify-between">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-bold text-zinc-900 tabular-nums">
-                                    {heroCount.toLocaleString()}
-                                </span>
-                                {trendPct !== null && (
-                                    <span className="flex items-baseline gap-1">
-                                        <span
-                                            className={
-                                                trendPct >= 0
-                                                    ? "text-xs font-medium tabular-nums text-emerald-500"
-                                                    : "text-xs font-medium tabular-nums text-red-400"
-                                            }
-                                        >
-                                            {trendPct >= 0 ? "+" : ""}
-                                            {trendPct}%
-                                        </span>
-                                        {!isViewingToday && (
-                                            <span className="text-[10px] text-zinc-400">
-                                                vs today
-                                            </span>
-                                        )}
-                                    </span>
-                                )}
-                            </div>
-                            <span className="text-xs text-zinc-400">
-                                {heroLabel}
+                    <div className="grid grid-cols-3 divide-x divide-zinc-100">
+                        <div className="flex flex-col gap-1 px-4 py-4">
+                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
+                                Total
+                            </span>
+                            <span className="text-3xl font-bold text-zinc-900 tabular-nums leading-tight mt-1">
+                                {fmtNum(todayTotal)}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 mt-0.5">
+                                actions today
                             </span>
                         </div>
-                        <DailyBarChart
-                            stats={stats}
+                        <div className="flex flex-col gap-1 px-4 py-4">
+                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
+                                Keystrokes
+                            </span>
+                            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-tight mt-1">
+                                {fmtNum(todayKeys)}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-sm bg-indigo-400 inline-block shrink-0" />
+                                keys
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1 px-4 py-4">
+                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest leading-none">
+                                Clicks
+                            </span>
+                            <span className="text-2xl font-bold text-zinc-800 tabular-nums leading-tight mt-1">
+                                {fmtNum(todayClicks)}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-sm bg-rose-400 inline-block shrink-0" />
+                                {todayClicks > 0
+                                    ? `${todayLeft}L · ${todayRight}R`
+                                    : "no clicks"}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="px-4 py-3 border-t border-zinc-100">
+                        <TodayByApp
+                            appStats={appStats}
                             clickStats={clickStats}
-                            selectedDate={selectedDate}
-                            onSelectDate={setSelectedDate}
+                            today={today}
                         />
                     </div>
+                </Card>
+            </div>
 
-                    {/* Stat chips — 4 columns inline */}
-                    <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
+            {/* ── Section 2: Summary (all-time, not range-dependent) ── */}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>Summary</SectionTitle>
+                <Card>
+                    <div className="grid grid-cols-4 divide-x divide-zinc-100">
                         <StatChip
                             label="Daily avg"
-                            value={
-                                avgCount >= 1_000_000
-                                    ? `${(avgCount / 1_000_000).toFixed(1)}M`
-                                    : avgCount >= 1_000
-                                      ? `${(avgCount / 1_000).toFixed(1)}K`
-                                      : avgCount.toLocaleString()
-                            }
+                            value={fmtNum(allTimeAvg)}
                             sub="actions"
                         />
                         <StatChip
                             label="Best day"
-                            value={
-                                bestDay.total >= 1_000_000
-                                    ? `${(bestDay.total / 1_000_000).toFixed(1)}M`
-                                    : bestDay.total >= 1_000
-                                      ? `${(bestDay.total / 1_000).toFixed(1)}K`
-                                      : bestDay.total.toLocaleString()
-                            }
+                            value={fmtNum(allTimeBestDay.total)}
                             sub={
-                                bestDay.date ? bestDay.date.slice(5) : undefined
+                                allTimeBestDay.date
+                                    ? allTimeBestDay.date.slice(5)
+                                    : undefined
                             }
                         />
                         <StatChip
@@ -205,11 +246,7 @@ export function StatisticsSection({
                             value={
                                 allTimeTotal === null
                                     ? "—"
-                                    : allTimeTotal >= 1_000_000
-                                      ? `${(allTimeTotal / 1_000_000).toFixed(1)}M`
-                                      : allTimeTotal >= 1_000
-                                        ? `${(allTimeTotal / 1_000).toFixed(1)}K`
-                                        : allTimeTotal.toLocaleString()
+                                    : fmtNum(allTimeTotal)
                             }
                             sub="actions"
                         />
@@ -217,24 +254,49 @@ export function StatisticsSection({
                 </Card>
             </div>
 
-            {/* Day-of-week pattern */}
+            {/* ── Section 3: Explore (chart + By App share the same date range) ── */}
             <div className="flex flex-col gap-2">
-                <SectionTitle>Last 7 Days</SectionTitle>
-                <Card>
-                    <div className="px-4 py-4">
-                        <Last7DaysChart stats={stats} clickStats={clickStats} />
+                <div className="flex items-center justify-between">
+                    <SectionTitle>Explore</SectionTitle>
+                    {/* Range controls: preset chips + calendar picker */}
+                    <div className="flex items-center gap-1.5">
+                        {presets.map(({ id, label }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => setPreset(id)}
+                                className={cn(
+                                    "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
+                                    preset === id
+                                        ? "bg-indigo-500 text-white font-medium"
+                                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
+                                )}
+                            >
+                                {label}
+                            </button>
+                        ))}
                     </div>
-                </Card>
-            </div>
+                </div>
 
-            {/* App breakdown */}
-            <div className="flex flex-col gap-2">
-                <SectionTitle>By App</SectionTitle>
                 <Card>
-                    <div className="px-4 py-4">
-                        <AppBreakdownChart
-                            appStats={appStats}
-                            clickStats={clickStats}
+                    {/* Bar chart */}
+                    <div className="px-4 pt-4 pb-3">
+                        <DailyBarChart
+                            stats={histStats}
+                            clickStats={histClicks}
+                            rangeStart={startDate}
+                            rangeEnd={endDate}
+                        />
+                    </div>
+
+                    {/* By App — same date range */}
+                    <div className="px-4 pt-3 pb-4 border-t border-zinc-100">
+                        <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+                            By App
+                        </p>
+                        <AppBreakdownRows
+                            appStats={histAppStats}
+                            clickStats={histClicks}
                         />
                     </div>
                 </Card>
