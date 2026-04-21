@@ -45,7 +45,7 @@
 
 **Dark mode** — Choose System, Light, or Dark theme in Settings → General. Takes effect instantly.
 
-**English & Chinese** — UI language auto-detected from your system, with a toggle in Settings → General.
+**Multi-language support** — UI language auto-detected from your system, with a toggle in Settings → General.
 
 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
