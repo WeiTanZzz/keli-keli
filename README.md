@@ -37,7 +37,7 @@
 
 ## What it looks like
 
-<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="600" />
+<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
 
 ## What you get
