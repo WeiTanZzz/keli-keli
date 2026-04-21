@@ -171,7 +171,7 @@ pub(crate) async fn install_update(
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn get_app_icon(app_name: String) -> Option<String> {
-    crate::macos::app_icon::get(&app_name)
+    crate::platform::macos::app_icon::get(&app_name)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -183,7 +183,7 @@ pub(crate) fn get_app_icon(_app_name: String) -> Option<String> {
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub(crate) fn get_app_display_name(app_name: String) -> Option<String> {
-    crate::macos::app_icon::display_name(&app_name)
+    crate::platform::macos::app_icon::display_name(&app_name)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -213,5 +213,7 @@ pub(crate) fn set_autostart(app: AppHandle, enabled: bool) {
 #[tauri::command]
 pub(crate) fn start_window_drag(window: tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
-    crate::macos::start_drag_window(&window);
+    crate::platform::macos::start_drag_window(&window);
+    #[cfg(not(target_os = "macos"))]
+    window.start_dragging().ok();
 }

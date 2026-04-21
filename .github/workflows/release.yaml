@@ -83,6 +83,8 @@ jobs:
                 include:
                     - os: macos-latest
                       target: aarch64-apple-darwin
+                    - os: windows-latest
+                      target: x86_64-pc-windows-msvc
 
         runs-on: ${{ matrix.os }}
 
@@ -111,7 +113,8 @@ jobs:
               with:
                   workspaces: desktop/src-tauri
 
-            - name: Import code signing certificate
+            - name: Import macOS code signing certificate
+              if: matrix.os == 'macos-latest'
               run: |
                   echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
                   security create-keychain -p "" build.keychain
@@ -130,7 +133,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-                  APPLE_SIGNING_IDENTITY: "KeliKeli Code Signing"
+                  APPLE_SIGNING_IDENTITY: ${{ matrix.os == 'macos-latest' && 'KeliKeli Code Signing' || '' }}
               with:
                   projectPath: desktop
                   tagName: ${{ env.RELEASE_VERSION }}

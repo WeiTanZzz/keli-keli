@@ -96,7 +96,7 @@ pub(crate) async fn check_for_updates_manual(app: &AppHandle) {
 
 #[cfg(target_os = "macos")]
 fn show_alert(app: &AppHandle, title: &str, message: &str) {
-    use crate::macos::ns_string;
+    use crate::platform::macos::ns_string;
     use objc::runtime::{Class, Object, YES};
     use objc::{msg_send, sel, sel_impl};
     let title = title.to_string();
@@ -119,7 +119,7 @@ fn show_alert(app: &AppHandle, title: &str, message: &str) {
 /// Offers "Open Settings" (goes straight to the About tab) and "Later".
 #[cfg(target_os = "macos")]
 fn show_update_prompt(app: &AppHandle, version: &str) {
-    use crate::macos::{ns_string, NS_ALERT_FIRST_BUTTON};
+    use crate::platform::macos::{ns_string, NS_ALERT_FIRST_BUTTON};
     use crate::tray::open_settings_window;
     use objc::runtime::{Class, Object, YES};
     use objc::{msg_send, sel, sel_impl};

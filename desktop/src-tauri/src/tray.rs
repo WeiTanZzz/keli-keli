@@ -81,7 +81,7 @@ pub(crate) fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
             }
             "quit" => {
                 #[cfg(target_os = "macos")]
-                if !crate::macos::macos_confirm_quit() {
+                if !crate::platform::macos::macos_confirm_quit() {
                     return;
                 }
                 app.state::<storage::Storage>().save();
@@ -113,7 +113,7 @@ pub(crate) fn open_settings_window(app: &AppHandle) {
         .build()
         {
             #[cfg(target_os = "macos")]
-            crate::macos::setup_settings_window_rounded(&win);
+            crate::platform::macos::setup_settings_window_rounded(&win);
         }
     }
 }
