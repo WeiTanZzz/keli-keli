@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import type {
     AllTimeCounts,
     AppClickStat,
@@ -8,13 +8,7 @@ import type {
     IndicatorConfig,
 } from "@/api"
 import { Button } from "@/components/ui/button"
-import { Calendar, type DateRange } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { AppBreakdownRows, DailyBarChart, TodayByApp } from "./charts"
@@ -29,20 +23,6 @@ function fmtNum(n: number): string {
     return n.toLocaleString()
 }
 
-// Build a local-midnight Date from a YYYY-MM-DD string.
-// Using `new Date(s)` would parse as UTC midnight and shift the date for
-// users behind UTC. The constructor `new Date(y, m, d)` uses local time.
-function dateFromStr(s: string): Date {
-    const [y, m, d] = s.split("-").map(Number)
-    return new Date(y, m - 1, d)
-}
-
-function fmtDisplay(s: string): string {
-    return dateFromStr(s).toLocaleDateString("en", {
-        month: "short",
-        day: "numeric",
-    })
-}
 
 type Preset = "7d" | "30d" | "90d"
 
@@ -135,37 +115,10 @@ export function StatisticsSection({
           allTimeCounts.right_clicks
         : null
 
-    // ── Explore range (chart + By App share the same picker) ──────────────────
+    // ── Explore range ─────────────────────────────────────────────────────────
     const [preset, setPreset] = useState<Preset>("30d")
-    const [popoverOpen, setPopoverOpen] = useState(false)
-
-    // appliedRange: committed filter shown in the chart.
-    const [appliedRange, setAppliedRange] = useState<
-        { from: Date; to: Date } | undefined
-    >(undefined)
-
-    // calendarRange: live selection state passed directly to Calendar.
-    const [calendarRange, setCalendarRange] = useState<DateRange | undefined>(
-        undefined,
-    )
-
-    // Auto-apply and close when user completes a range (both from and to set).
-    useEffect(() => {
-        if (calendarRange?.from && calendarRange?.to) {
-            setAppliedRange({ from: calendarRange.from, to: calendarRange.to })
-            setPopoverOpen(false)
-        }
-    }, [calendarRange])
-
-    const isCustom = appliedRange != null
 
     const { startDate, endDate } = useMemo(() => {
-        if (appliedRange) {
-            return {
-                startDate: localDateStr(appliedRange.from),
-                endDate: localDateStr(appliedRange.to),
-            }
-        }
         const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90
         return {
             startDate: localDateStr(
@@ -173,13 +126,7 @@ export function StatisticsSection({
             ),
             endDate: today,
         }
-    }, [appliedRange, preset, today])
-
-    const handlePreset = (p: Preset) => {
-        setPreset(p)
-        setAppliedRange(undefined)
-        setCalendarRange(undefined)
-    }
+    }, [preset, today])
 
     const histStats = useMemo(
         () => stats.filter((s) => s.date >= startDate && s.date <= endDate),
@@ -318,10 +265,10 @@ export function StatisticsSection({
                             <button
                                 key={id}
                                 type="button"
-                                onClick={() => handlePreset(id)}
+                                onClick={() => setPreset(id)}
                                 className={cn(
                                     "px-2.5 py-0.5 text-[11px] rounded-full transition-colors",
-                                    !isCustom && preset === id
+                                    preset === id
                                         ? "bg-indigo-500 text-white font-medium"
                                         : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
                                 )}
@@ -329,38 +276,6 @@ export function StatisticsSection({
                                 {label}
                             </button>
                         ))}
-                        <Popover
-                            open={popoverOpen}
-                            onOpenChange={(open) => {
-                                setPopoverOpen(open)
-                                if (open) setCalendarRange(undefined)
-                            }}
-                        >
-                            <PopoverTrigger asChild>
-                                <button
-                                    type="button"
-                                    className={cn(
-                                        "px-2.5 py-0.5 text-[11px] rounded-full transition-colors border",
-                                        isCustom
-                                            ? "bg-indigo-500 text-white font-medium border-indigo-500"
-                                            : "bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50",
-                                    )}
-                                >
-                                    {isCustom
-                                        ? `${fmtDisplay(startDate)} – ${fmtDisplay(endDate)}`
-                                        : "Custom"}
-                                </button>
-                            </PopoverTrigger>
-                            <PopoverContent align="end" className="p-0">
-                                <Calendar
-                                    mode="range"
-                                    selected={calendarRange}
-                                    onSelect={setCalendarRange}
-                                    disabled={{ after: dateFromStr(today) }}
-                                    numberOfMonths={1}
-                                />
-                            </PopoverContent>
-                        </Popover>
                     </div>
                 </div>
 
