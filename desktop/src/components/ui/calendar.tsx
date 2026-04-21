@@ -43,14 +43,15 @@ export function Calendar({
                     "[&>button]:text-zinc-300 [&>button]:hover:bg-transparent [&>button]:hover:text-zinc-300",
                 disabled:
                     "[&>button]:text-zinc-200 [&>button]:pointer-events-none",
-                // before: covers the half-cell behind the circle to connect to the middle strip
+                // before: draws a h-6 strip (same height as the circle) centered in the cell.
+                // start/end: right/left half only, so strip connects seamlessly to middle.
                 range_start:
-                    "before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:right-0 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
+                    "before:content-[''] before:absolute before:top-1/2 before:-translate-y-1/2 before:h-6 before:left-1/2 before:right-0 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
                 range_end:
-                    "before:content-[''] before:absolute before:inset-y-0 before:left-0 before:right-1/2 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
-                // Full-width strip; button is transparent so strip color shows through
+                    "before:content-[''] before:absolute before:top-1/2 before:-translate-y-1/2 before:h-6 before:left-0 before:right-1/2 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
+                // Full-width h-6 strip; transparent button floats above it.
                 range_middle:
-                    "bg-indigo-100 [&>button]:w-full [&>button]:h-full [&>button]:rounded-none [&>button]:bg-transparent [&>button]:text-indigo-700 [&>button]:hover:bg-indigo-200",
+                    "before:content-[''] before:absolute before:top-1/2 before:-translate-y-1/2 before:h-6 before:inset-x-0 before:bg-indigo-100 [&>button]:relative [&>button]:z-10 [&>button]:bg-transparent [&>button]:text-indigo-700 [&>button]:hover:bg-indigo-200",
                 hidden: "invisible",
                 ...classNames,
             }}
