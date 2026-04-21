@@ -46,6 +46,7 @@ jobs:
             - uses: dtolnay/rust-toolchain@stable
               with:
                   components: rustfmt, clippy
+                  targets: aarch64-apple-darwin,x86_64-apple-darwin
 
             - uses: Swatinem/rust-cache@v2
               with:
@@ -57,8 +58,11 @@ jobs:
             - name: Clippy
               run: cargo clippy -- -D warnings
 
-            - name: Build check
-              run: cargo check
+            - name: Build check (ARM)
+              run: cargo check --target aarch64-apple-darwin
+
+            - name: Build check (Intel)
+              run: cargo check --target x86_64-apple-darwin
 
             - name: Test
               run: cargo test --lib
