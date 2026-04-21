@@ -223,11 +223,28 @@ export function DailyBarChart({
             {/* Date labels */}
             <div className="flex items-start gap-0.5">
                 {dayData.map(({ date }, i) => {
-                    const showLabel =
-                        i === 0 || i === dayData.length - 1 || i % 7 === 0
+                    const n = dayData.length
+                    const isFirst = i === 0
+                    const isLast = i === n - 1
+                    const isMonthStart = date.slice(8) === "01"
+
+                    let label: string | null = null
+                    if (n <= 14) {
+                        label = date.slice(8) // day number only
+                    } else if (n <= 31) {
+                        if (isFirst || isLast || i % 7 === 0) label = date.slice(5)
+                    } else {
+                        if (isFirst || isLast) {
+                            label = date.slice(5)
+                        } else if (isMonthStart) {
+                            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+                            label = months[parseInt(date.slice(5, 7)) - 1]
+                        }
+                    }
+
                     return (
                         <div key={date} className="flex-1 text-center">
-                            {showLabel && (
+                            {label && (
                                 <span
                                     className={cn(
                                         "text-[9px] leading-none",
@@ -236,7 +253,7 @@ export function DailyBarChart({
                                             : "text-zinc-400",
                                     )}
                                 >
-                                    {date.slice(5)}
+                                    {label}
                                 </span>
                             )}
                         </div>

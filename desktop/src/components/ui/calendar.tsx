@@ -29,9 +29,9 @@ export function Calendar({
                 weekday:
                     "w-8 text-center text-[10px] font-medium text-zinc-400 pb-1",
                 week: "flex",
-                day: "w-8 h-8 p-0 text-center",
+                day: "relative w-8 h-8 p-0 text-center",
                 day_button: cn(
-                    "w-full h-full rounded-md text-[12px] font-medium transition-colors",
+                    "relative z-10 w-full h-full rounded-full text-[12px] font-medium transition-colors",
                     "text-zinc-700 hover:bg-indigo-50 hover:text-indigo-600",
                     "focus:outline-none focus:ring-2 focus:ring-indigo-400",
                 ),
@@ -43,11 +43,11 @@ export function Calendar({
                 disabled:
                     "[&>button]:text-zinc-200 [&>button]:pointer-events-none",
                 range_start:
-                    "[&>button]:bg-indigo-500 [&>button]:text-white [&>button]:rounded-md",
+                    "before:absolute before:inset-y-0 before:left-1/2 before:right-0 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
                 range_end:
-                    "[&>button]:bg-indigo-500 [&>button]:text-white [&>button]:rounded-md",
+                    "before:absolute before:inset-y-0 before:left-0 before:right-1/2 before:bg-indigo-100 [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
                 range_middle:
-                    "[&>button]:bg-indigo-100 [&>button]:text-indigo-700 [&>button]:rounded-none [&>button]:hover:bg-indigo-200",
+                    "bg-indigo-100 [&>button]:bg-transparent [&>button]:text-indigo-700 [&>button]:rounded-none [&>button]:hover:bg-indigo-200",
                 hidden: "invisible",
                 ...classNames,
             }}

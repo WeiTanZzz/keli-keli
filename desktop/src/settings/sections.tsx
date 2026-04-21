@@ -367,7 +367,11 @@ export function StatisticsSection({
                                     mode="range"
                                     selected={calendarDisplay}
                                     onSelect={handleCalendarSelect}
-                                    disabled={{ after: dateFromStr(today) }}
+                                    disabled={(date) => {
+                                        if (date > dateFromStr(today)) return true
+                                        if (inProgress?.from && !inProgress.to && date < inProgress.from) return true
+                                        return false
+                                    }}
                                     numberOfMonths={1}
                                 />
                             </PopoverContent>
