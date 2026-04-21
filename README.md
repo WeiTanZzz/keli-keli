@@ -32,21 +32,17 @@
 - 30-day history with streaks, averages, and per-app breakdown
 - Export as JSON or stream live events to your own API or WebSocket server
 
----
-
 ## Download
 
 [**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
----
 
 ## What it looks like
 
 <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="600" />
 
----
 
 ## What you get
 
@@ -62,7 +58,6 @@
 
 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
----
 
 ## Sync & integrations
 
@@ -102,7 +97,6 @@ Streams individual events as they happen:
 
 Reconnects automatically with exponential back-off (up to 5 min).
 
----
 
 ## Privacy
 
@@ -135,7 +129,6 @@ Alternatively: right-click → **Open** → **Open** to grant a one-time excepti
 
 Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
----
 
 ## Settings reference
 
