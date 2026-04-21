@@ -139,16 +139,18 @@ export function StatisticsSection({
     const [preset, setPreset] = useState<Preset>("30d")
     const [popoverOpen, setPopoverOpen] = useState(false)
 
-    // appliedRange: committed filter shown in chart.
+    // appliedRange: committed filter shown in the chart.
     const [appliedRange, setAppliedRange] = useState<
         { from: Date; to: Date } | undefined
     >(undefined)
 
-    // pickStep: 0 = waiting for first click (from), 1 = waiting for second click (to).
-    // Always two clicks regardless of whether a range is already applied.
-    const [pickStep, setPickStep] = useState<0 | 1>(0)
-    // pendingFrom: the date clicked in step 0, held until step 1 completes.
-    const [pendingFrom, setPendingFrom] = useState<Date | undefined>(undefined)
+    // calendarRange: live selection state inside the calendar.
+    // Reset to undefined each time the popover opens so react-day-picker
+    // always starts fresh — this ensures the first click is always "from",
+    // never "shorten an existing range", which enables the hover-preview UX.
+    const [calendarRange, setCalendarRange] = useState<DateRange | undefined>(
+        undefined,
+    )
 
     const isCustom = appliedRange != null
 
@@ -171,37 +173,16 @@ export function StatisticsSection({
     const handlePreset = (p: Preset) => {
         setPreset(p)
         setAppliedRange(undefined)
-        setPendingFrom(undefined)
-        setPickStep(0)
+        setCalendarRange(undefined)
     }
 
     const handleCalendarSelect = (range: DateRange | undefined) => {
-        if (pickStep === 0) {
-            // First click: record the from date, wait for second click
-            const from = range?.from
-            if (!from) return
-            setPendingFrom(from)
-            setPickStep(1)
-        } else {
-            // Second click: take pendingFrom + whatever date was clicked as to
-            const from = pendingFrom
-            // react-day-picker gives { from: pendingFrom, to: clicked } in step 1
-            const to = range?.to ?? range?.from
-            if (!from || !to) return
-            setAppliedRange({ from, to })
-            setPendingFrom(undefined)
-            setPickStep(0)
+        setCalendarRange(range)
+        if (range?.from && range?.to) {
+            setAppliedRange({ from: range.from, to: range.to })
             setPopoverOpen(false)
         }
     }
-
-    // Calendar display: step 1 shows from only; done shows applied; otherwise empty
-    const calendarDisplay: DateRange | undefined =
-        pickStep === 1 && pendingFrom
-            ? { from: pendingFrom, to: undefined }
-            : appliedRange
-              ? { from: appliedRange.from, to: appliedRange.to }
-              : undefined
 
     const histStats = useMemo(
         () => stats.filter((s) => s.date >= startDate && s.date <= endDate),
@@ -355,10 +336,8 @@ export function StatisticsSection({
                             open={popoverOpen}
                             onOpenChange={(open) => {
                                 setPopoverOpen(open)
-                                if (!open) {
-                                    setPendingFrom(undefined)
-                                    setPickStep(0)
-                                }
+                                // Always start fresh so first click = from, enabling hover preview
+                                setCalendarRange(undefined)
                             }}
                         >
                             <PopoverTrigger asChild>
@@ -379,13 +358,9 @@ export function StatisticsSection({
                             <PopoverContent align="end" className="p-0">
                                 <Calendar
                                     mode="range"
-                                    selected={calendarDisplay}
+                                    selected={calendarRange}
                                     onSelect={handleCalendarSelect}
-                                    disabled={(date) => {
-                                        if (date > dateFromStr(today)) return true
-                                        if (pickStep === 1 && pendingFrom && date < pendingFrom) return true
-                                        return false
-                                    }}
+                                    disabled={{ after: dateFromStr(today) }}
                                     numberOfMonths={1}
                                 />
                             </PopoverContent>
