@@ -136,8 +136,15 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 ```sh
 git clone https://github.com/WeiTanZzz/keli-keli.git
 cd keli-keli/desktop
-npm install
-npm run build
+
+# npm
+npm install && npm run build
+
+# pnpm
+pnpm install && pnpm build
+
+# yarn
+yarn && yarn build
 ```
 
 The built app will be in `desktop/src-tauri/target/release/bundle/`.
