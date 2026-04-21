@@ -12,6 +12,7 @@ import {
 } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { applyTheme, getTheme, saveTheme, type Theme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { localDateStr } from "./settings/helpers"
 import {
@@ -42,7 +43,7 @@ function TitleBar() {
     return (
         <div
             data-tauri-drag-region
-            className="relative flex h-9 items-center shrink-0 bg-zinc-50 border-b border-zinc-200"
+            className="relative flex h-9 items-center shrink-0 bg-zinc-50 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700"
         >
             {/* macOS traffic-light buttons */}
             <div className="flex items-center gap-1.5 px-3 z-10">
@@ -75,7 +76,7 @@ function TitleBar() {
 
             {/* Centered title — pointer-events-none so drag region stays active */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-[12px] font-medium text-zinc-500 select-none">
+                <span className="text-[12px] font-medium text-zinc-500 dark:text-zinc-400 select-none">
                     KeliKeli
                 </span>
             </div>
@@ -98,6 +99,21 @@ export default function Settings() {
     const [showRestartDialog, setShowRestartDialog] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
     const [active, setActive] = useState<NavId>("statistics")
+    const [theme, setThemeState] = useState<Theme>(getTheme)
+
+    useEffect(() => {
+        applyTheme(theme)
+        saveTheme(theme)
+    }, [theme])
+
+    useEffect(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)")
+        const handler = () => {
+            if (getTheme() === "system") applyTheme("system")
+        }
+        mq.addEventListener("change", handler)
+        return () => mq.removeEventListener("change", handler)
+    }, [])
 
     useEffect(() => {
         const today = localDateStr()
@@ -269,12 +285,12 @@ export default function Settings() {
         active === "connections"
 
     return (
-        <div className="flex flex-col h-screen bg-zinc-100 font-sans select-none overflow-hidden rounded-xl">
+        <div className="flex flex-col h-screen bg-zinc-100 dark:bg-zinc-900 font-sans select-none overflow-hidden rounded-xl">
             <TitleBar />
 
             <div className="flex flex-1 min-h-0">
                 {/* Sidebar */}
-                <aside className="w-44 flex flex-col border-r border-zinc-200 bg-zinc-50/80 shrink-0">
+                <aside className="w-44 flex flex-col border-r border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 shrink-0">
                     <nav className="flex flex-col gap-0.5 p-2 mt-2">
                         {NAV_ITEMS.map((item) => {
                             const Icon = item.icon
@@ -288,7 +304,7 @@ export default function Settings() {
                                         "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-left w-full transition-colors",
                                         isActive
                                             ? "bg-indigo-500 text-white shadow-sm"
-                                            : "text-zinc-600 hover:bg-zinc-200/70",
+                                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-zinc-700/50",
                                     )}
                                 >
                                     <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -318,7 +334,9 @@ export default function Settings() {
                             <GeneralSection
                                 autostart={autostart}
                                 cfg={cfg}
+                                theme={theme}
                                 onAutostart={handleAutostart}
+                                onTheme={setThemeState}
                                 onFlushInterval={(v) =>
                                     setCfg((c) =>
                                         c
@@ -377,12 +395,12 @@ export default function Settings() {
 
             {showRestartDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                    <div className="bg-white rounded-xl shadow-xl w-72 p-5 flex flex-col gap-4">
+                    <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl w-72 p-5 flex flex-col gap-4">
                         <div className="flex flex-col gap-1">
-                            <span className="text-sm font-semibold text-zinc-800">
+                            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                                 Restart required
                             </span>
-                            <span className="text-xs text-zinc-500 leading-relaxed">
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                                 Connection settings take effect after a restart.
                                 Save and reopen now?
                             </span>
