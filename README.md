@@ -1,16 +1,35 @@
-# KeliKeli
+<p align="center">
+  <img src="desktop/src-tauri/icons/512x512.png" alt="KeliKeli" width="128" />
+</p>
 
-![keli-keli](https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f)
+<h1 align="center">KeliKeli</h1>
 
-A tiny macOS app that floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
+<p align="center">
+  <a href="../../releases/latest">Download</a> ·
+  <a href="#what-you-get">Features</a> ·
+  <a href="#sync--integrations">Integrations</a> ·
+  <a href="#privacy">Privacy</a> ·
+  <a href="#settings-reference">Settings</a>
+</p>
+
+<p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/WeiTanZzz/keli-keli" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/macOS_12%2B_%C2%B7_Apple_Silicon-black?logo=apple&logoColor=white" alt="macOS 12+ · Apple Silicon" />
+  <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
+</p>
+
+## A tiny macOS app that makes your work visible ⌨️✨
+
+**KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
+
+<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
 ## Download
 
-[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
+[**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
 
----
 
 ## What you get
 
@@ -26,7 +45,6 @@ A tiny macOS app that floats a live indicator on your screen with every keystrok
 
 **Your data, your way** — Export everything as JSON, or stream live events to your own API or WebSocket server.
 
----
 
 ## Sync & integrations
 
@@ -66,7 +84,6 @@ Streams individual events as they happen:
 
 Reconnects automatically with exponential back-off (up to 5 min).
 
----
 
 ## Privacy
 
@@ -99,7 +116,6 @@ Alternatively: right-click → **Open** → **Open** to grant a one-time excepti
 
 Only do this if you downloaded from the [official GitHub Releases](../../releases) page and the file hash matches.
 
----
 
 ## Settings reference
 
@@ -111,3 +127,24 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 | Indicator → Badge text | Independent badge labels for keystroke / left click / right click |
 | HTTP Sync | POST totals to your API on an interval |
 | WebSocket | Stream live events to a server |
+
+
+## Building from source
+
+**Prerequisites:** [Rust](https://rustup.rs) · [Node.js](https://nodejs.org) · [Tauri CLI](https://tauri.app/start/prerequisites/)
+
+```sh
+git clone https://github.com/WeiTanZzz/keli-keli.git
+cd keli-keli/desktop
+
+# npm
+npm install && npm run build
+
+# pnpm
+pnpm install && pnpm build
+
+# yarn
+yarn && yarn build
+```
+
+The built app will be in `desktop/src-tauri/target/release/bundle/`.
