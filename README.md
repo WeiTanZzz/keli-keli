@@ -14,8 +14,7 @@
 
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/WeiTanZzz/keli-keli" alt="Latest Release" /></a>
-  <img src="https://img.shields.io/badge/macOS-12%2B-black?logo=apple" alt="macOS 12+" />
-  <img src="https://img.shields.io/badge/Apple_Silicon-black?logo=apple&logoColor=white" alt="Apple Silicon" />
+  <img src="https://img.shields.io/badge/macOS_12%2B_%C2%B7_Apple_Silicon-black?logo=apple&logoColor=white" alt="macOS 12+ · Apple Silicon" />
   <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
 </p>
 
@@ -23,21 +22,13 @@
 
 **KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
 
-- Floating badge animation on every key press and click, customizable with any emoji or your active app's icon
-- Daily stats in the menu bar — no dashboards, no digging
-- 30-day history with streaks, averages, and per-app breakdown
-- Export as JSON or stream live events to your own API or WebSocket server
+<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
 ## Download
 
 [**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
-
-
-## What it looks like
-
-<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
 
 
 ## What you get
@@ -136,3 +127,17 @@ Only do this if you downloaded from the [official GitHub Releases](../../release
 | Indicator → Badge text | Independent badge labels for keystroke / left click / right click |
 | HTTP Sync | POST totals to your API on an interval |
 | WebSocket | Stream live events to a server |
+
+
+## Building from source
+
+**Prerequisites:** [Rust](https://rustup.rs) · [Node.js](https://nodejs.org) · [Tauri CLI](https://tauri.app/start/prerequisites/)
+
+```sh
+git clone https://github.com/WeiTanZzz/keli-keli.git
+cd keli-keli/desktop
+npm install
+npm run build
+```
+
+The built app will be in `desktop/src-tauri/target/release/bundle/`.
