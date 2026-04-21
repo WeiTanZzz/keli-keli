@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="desktop/src-tauri/icons/128x128.png" alt="KeliKeli" width="128" />
+  <img src="desktop/src-tauri/icons/512x512.png" alt="KeliKeli" width="128" />
 </p>
 
 <h1 align="center">KeliKeli</h1>
