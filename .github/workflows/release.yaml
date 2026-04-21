@@ -82,9 +82,11 @@ jobs:
             matrix:
                 include:
                     - os: macos-latest
-                      target: aarch64-apple-darwin
+                      target: universal-apple-darwin
+                      rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
                     - os: windows-latest
                       target: x86_64-pc-windows-msvc
+                      rust_targets: x86_64-pc-windows-msvc
 
         runs-on: ${{ matrix.os }}
 
@@ -107,7 +109,7 @@ jobs:
 
             - uses: dtolnay/rust-toolchain@stable
               with:
-                  targets: ${{ matrix.target }}
+                  targets: ${{ matrix.rust_targets }}
 
             - uses: Swatinem/rust-cache@v2
               with:
