@@ -1,14 +1,50 @@
-# KeliKeli
+<p align="center">
+  <!-- PLACEHOLDER: Replace with a full-width banner image (e.g., 1280×400px SVG/PNG showing the app name and a floating indicator animation) -->
+  <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli" width="100%" />
+</p>
 
-![keli-keli](https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f)
+<p align="center">
+  <a href="../../releases/latest">Download</a> ·
+  <a href="#what-you-get">Features</a> ·
+  <a href="#sync--integrations">Integrations</a> ·
+  <a href="#privacy">Privacy</a> ·
+  <a href="#settings-reference">Settings</a>
+</p>
 
-A tiny macOS app that floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
+<p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/WeiTanZzz/keli-keli" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/macOS-12%2B-black?logo=apple" alt="macOS 12+" />
+  <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-black?logo=apple&logoColor=white" alt="Apple Silicon & Intel" />
+  <img src="https://img.shields.io/github/license/WeiTanZzz/keli-keli" alt="License" />
+</p>
+
+<p align="center">
+  <a href="../../stargazers">⭐️ Star us on GitHub</a>
+</p>
+
+## A tiny macOS app that makes your work visible ⌨️✨
+
+**KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
+
+- Floating badge animation on every key press and click, customizable with any emoji or your active app's icon
+- Daily stats in the menu bar — no dashboards, no digging
+- 30-day history with streaks, averages, and per-app breakdown
+- Export as JSON or stream live events to your own API or WebSocket server
+
+---
 
 ## Download
 
 [**→ Get the latest release**](../../releases/latest) — macOS 12+, Apple Silicon & Intel
 
 > First launch may show a Gatekeeper warning. [Here's how to fix it.](#macos-gatekeeper-warnings)
+
+---
+
+## What it looks like
+
+<!-- PLACEHOLDER: Add a screen recording or GIF (recommended: ~600px wide) showing the floating indicator animating on keystrokes/clicks. Use something like: -->
+<!-- <img src=".github/assets/demo.gif" alt="KeliKeli demo" width="600" /> -->
 
 ---
 
