@@ -94,18 +94,62 @@ export function StatisticsSection({
             ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100)
             : null
 
-    // ── Explore range (shared by History chart + By App) ──────────────────────
+    // ── All-time summary stats (not range-dependent) ───────────────────────────
+    const allDailyClicks = useMemo(() => {
+        const m = new Map<string, number>()
+        for (const s of clickStats) {
+            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
+        }
+        return m
+    }, [clickStats])
+
+    const allDailyTotals = useMemo(() => {
+        const dates = new Set([
+            ...stats.map((s) => s.date),
+            ...allDailyClicks.keys(),
+        ])
+        return Array.from(dates).map((date) => ({
+            date,
+            total:
+                (stats.find((s) => s.date === date)?.count ?? 0) +
+                (allDailyClicks.get(date) ?? 0),
+        }))
+    }, [stats, allDailyClicks])
+
+    const allDaysWithData = allDailyTotals.filter((d) => d.total > 0)
+    const allTimeAvg =
+        allDaysWithData.length > 0
+            ? Math.round(
+                  allDaysWithData.reduce((s, d) => s + d.total, 0) /
+                      allDaysWithData.length,
+              )
+            : 0
+    const allTimeBestDay = allDailyTotals.reduce(
+        (best, d) => (d.total > best.total ? d : best),
+        { date: "", total: 0 },
+    )
+    const streak = useMemo(() => computeStreak(stats), [stats])
+    const allTimeTotal = allTimeCounts
+        ? allTimeCounts.keystrokes +
+          allTimeCounts.left_clicks +
+          allTimeCounts.right_clicks
+        : null
+
+    // ── Explore range (chart + By App share the same picker) ──────────────────
     const [preset, setPreset] = useState<Preset>("30d")
-    const [customRange, setCustomRange] = useState<DateRange | undefined>(
+    // rangeSelection tracks the calendar's state including partial selections.
+    // isCustom is only true when BOTH from and to are picked — that's when
+    // we apply it as the active filter.
+    const [rangeSelection, setRangeSelection] = useState<DateRange | undefined>(
         undefined,
     )
-    const isCustom = customRange?.from != null && customRange?.to != null
+    const isCustom = rangeSelection?.from != null && rangeSelection?.to != null
 
     const { startDate, endDate } = useMemo(() => {
-        if (isCustom && customRange?.from && customRange?.to) {
+        if (isCustom && rangeSelection?.from && rangeSelection?.to) {
             return {
-                startDate: localDateStr(customRange.from),
-                endDate: localDateStr(customRange.to),
+                startDate: localDateStr(rangeSelection.from),
+                endDate: localDateStr(rangeSelection.to),
             }
         }
         const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90
@@ -115,18 +159,17 @@ export function StatisticsSection({
             ),
             endDate: today,
         }
-    }, [isCustom, customRange, preset, today])
+    }, [isCustom, rangeSelection, preset, today])
 
     const handlePreset = (p: Preset) => {
         setPreset(p)
-        setCustomRange(undefined)
+        setRangeSelection(undefined)
     }
 
-    const handleCalendar = (range: DateRange | undefined) => {
-        setCustomRange(range)
-    }
-
-    const calendarSelected: DateRange = {
+    // Pass rangeSelection directly to the calendar so partial (first-click)
+    // state is preserved. Fall back to the preset range only when no selection
+    // has been started yet (rangeSelection === undefined).
+    const calendarDisplay: DateRange = rangeSelection ?? {
         from: dateFromStr(startDate),
         to: dateFromStr(endDate),
     }
@@ -144,46 +187,6 @@ export function StatisticsSection({
         () => appStats.filter((s) => s.date >= startDate && s.date <= endDate),
         [appStats, startDate, endDate],
     )
-
-    const dailyClickMap = useMemo(() => {
-        const m = new Map<string, number>()
-        for (const s of histClicks) {
-            m.set(s.date, (m.get(s.date) ?? 0) + s.left_clicks + s.right_clicks)
-        }
-        return m
-    }, [histClicks])
-
-    const periodDailyTotals = useMemo(() => {
-        const dates = new Set([
-            ...histStats.map((s) => s.date),
-            ...dailyClickMap.keys(),
-        ])
-        return Array.from(dates).map((date) => ({
-            date,
-            total:
-                (histStats.find((s) => s.date === date)?.count ?? 0) +
-                (dailyClickMap.get(date) ?? 0),
-        }))
-    }, [histStats, dailyClickMap])
-
-    const daysWithData = periodDailyTotals.filter((d) => d.total > 0)
-    const avgCount =
-        daysWithData.length > 0
-            ? Math.round(
-                  daysWithData.reduce((s, d) => s + d.total, 0) /
-                      daysWithData.length,
-              )
-            : 0
-    const bestDay = periodDailyTotals.reduce(
-        (best, d) => (d.total > best.total ? d : best),
-        { date: "", total: 0 },
-    )
-    const streak = useMemo(() => computeStreak(stats), [stats])
-    const allTimeTotal = allTimeCounts
-        ? allTimeCounts.keystrokes +
-          allTimeCounts.left_clicks +
-          allTimeCounts.right_clicks
-        : null
 
     const presets: { id: Preset; label: string }[] = [
         { id: "7d", label: "7d" },
@@ -261,11 +264,48 @@ export function StatisticsSection({
                 </Card>
             </div>
 
-            {/* ── Section 2: Explore (History + By App share the same range) ── */}
+            {/* ── Section 2: Summary (all-time, not range-dependent) ── */}
+            <div className="flex flex-col gap-2">
+                <SectionTitle>Summary</SectionTitle>
+                <Card>
+                    <div className="grid grid-cols-4 divide-x divide-zinc-100">
+                        <StatChip
+                            label="Daily avg"
+                            value={fmtNum(allTimeAvg)}
+                            sub="actions"
+                        />
+                        <StatChip
+                            label="Best day"
+                            value={fmtNum(allTimeBestDay.total)}
+                            sub={
+                                allTimeBestDay.date
+                                    ? allTimeBestDay.date.slice(5)
+                                    : undefined
+                            }
+                        />
+                        <StatChip
+                            label="Streak"
+                            value={streak > 0 ? `${streak}d` : "—"}
+                            sub={streak > 0 ? "in a row" : "no streak"}
+                        />
+                        <StatChip
+                            label="All time"
+                            value={
+                                allTimeTotal === null
+                                    ? "—"
+                                    : fmtNum(allTimeTotal)
+                            }
+                            sub="actions"
+                        />
+                    </div>
+                </Card>
+            </div>
+
+            {/* ── Section 3: Explore (chart + By App share the same date range) ── */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                     <SectionTitle>Explore</SectionTitle>
-                    {/* Range controls: preset chips + calendar date-range picker */}
+                    {/* Range controls: preset chips + calendar picker */}
                     <div className="flex items-center gap-1.5">
                         {presets.map(({ id, label }) => (
                             <button
@@ -301,8 +341,8 @@ export function StatisticsSection({
                             <PopoverContent align="end" className="p-0">
                                 <Calendar
                                     mode="range"
-                                    selected={calendarSelected}
-                                    onSelect={handleCalendar}
+                                    selected={calendarDisplay}
+                                    onSelect={setRangeSelection}
                                     disabled={{ after: dateFromStr(today) }}
                                     numberOfMonths={1}
                                 />
@@ -317,41 +357,10 @@ export function StatisticsSection({
                         <DailyBarChart
                             stats={histStats}
                             clickStats={histClicks}
-                            appStats={histAppStats}
                         />
                     </div>
 
-                    {/* Stat chips */}
-                    <div className="grid grid-cols-4 divide-x divide-zinc-100 border-t border-zinc-100">
-                        <StatChip
-                            label="Daily avg"
-                            value={fmtNum(avgCount)}
-                            sub="actions"
-                        />
-                        <StatChip
-                            label="Best day"
-                            value={fmtNum(bestDay.total)}
-                            sub={
-                                bestDay.date ? bestDay.date.slice(5) : undefined
-                            }
-                        />
-                        <StatChip
-                            label="Streak"
-                            value={streak > 0 ? `${streak}d` : "—"}
-                            sub={streak > 0 ? "in a row" : "no streak"}
-                        />
-                        <StatChip
-                            label="All time"
-                            value={
-                                allTimeTotal === null
-                                    ? "—"
-                                    : fmtNum(allTimeTotal)
-                            }
-                            sub="actions"
-                        />
-                    </div>
-
-                    {/* By App — same date range, same card */}
+                    {/* By App — same date range */}
                     <div className="px-4 pt-3 pb-4 border-t border-zinc-100">
                         <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
                             By App

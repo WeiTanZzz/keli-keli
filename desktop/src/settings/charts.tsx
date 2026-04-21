@@ -80,11 +80,9 @@ export function AppRow({
 export function DailyBarChart({
     stats,
     clickStats,
-    appStats,
 }: {
     stats: DayStat[]
     clickStats: AppClickStat[]
-    appStats?: AppStat[]
 }) {
     const today = localDateStr()
 
@@ -113,37 +111,9 @@ export function DailyBarChart({
     const infoKeys = stats.find((s) => s.date === infoDate)?.count ?? 0
     const infoClicks = dailyClicks.get(infoDate) ?? 0
 
-    // Top apps for the hovered/default date
-    const infoApps = useMemo(() => {
-        if (!appStats) return []
-        const clickData = new Map<string, { left: number; right: number }>()
-        for (const s of clickStats) {
-            if (s.date !== infoDate) continue
-            const p = clickData.get(s.app) ?? { left: 0, right: 0 }
-            clickData.set(s.app, {
-                left: p.left + s.left_clicks,
-                right: p.right + s.right_clicks,
-            })
-        }
-        const keyMap = new Map<string, number>()
-        for (const s of appStats) {
-            if (s.date !== infoDate) continue
-            keyMap.set(s.app, (keyMap.get(s.app) ?? 0) + s.count)
-        }
-        const allApps = new Set([...keyMap.keys(), ...clickData.keys()])
-        return Array.from(allApps)
-            .map((app) => {
-                const c = clickData.get(app) ?? { left: 0, right: 0 }
-                const k = keyMap.get(app) ?? 0
-                return { app, total: k + c.left + c.right }
-            })
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 4)
-    }, [appStats, clickStats, infoDate])
-
     return (
         <div className="flex flex-col gap-1.5">
-            {/* Info row: date + totals */}
+            {/* Info row */}
             <div className="flex items-center gap-3 h-4 text-[10px]">
                 <span className="text-zinc-400 tabular-nums">{infoDate}</span>
                 <span className="flex items-center gap-1 text-zinc-500">
@@ -154,19 +124,6 @@ export function DailyBarChart({
                     <span className="flex items-center gap-1 text-zinc-500">
                         <span className="inline-block w-1.5 h-1.5 rounded-sm bg-rose-400" />
                         {infoClicks.toLocaleString()} clicks
-                    </span>
-                )}
-                {infoApps.length > 0 && (
-                    <span className="flex items-center gap-1.5 ml-1 text-zinc-400">
-                        <span className="text-zinc-200">·</span>
-                        {infoApps.map(({ app, total }) => (
-                            <span key={app} className="truncate max-w-[60px]">
-                                {app.split(".").pop() ?? app}{" "}
-                                <span className="text-zinc-300">
-                                    {total.toLocaleString()}
-                                </span>
-                            </span>
-                        ))}
                     </span>
                 )}
             </div>
