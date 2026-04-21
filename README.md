@@ -1,7 +1,8 @@
 <p align="center">
-  <!-- PLACEHOLDER: Replace with a full-width banner image (e.g., 1280×400px SVG/PNG showing the app name and a floating indicator animation) -->
-  <img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli" width="100%" />
+  <img src="desktop/src-tauri/icons/128x128.png" alt="KeliKeli" width="128" />
 </p>
+
+<h1 align="center">KeliKeli</h1>
 
 <p align="center">
   <a href="../../releases/latest">Download</a> ·
