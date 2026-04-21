@@ -49,7 +49,7 @@ export function Calendar({
                 range_end:
                     "bg-indigo-100 rounded-r-full [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
                 range_middle:
-                    "bg-indigo-100 [&>button]:bg-transparent [&>button]:text-indigo-700 [&>button]:rounded-none [&>button]:w-full [&>button]:h-full [&>button]:hover:bg-indigo-200",
+                    "bg-indigo-100 [&>button]:!bg-transparent [&>button]:!text-indigo-700 [&>button]:rounded-none [&>button]:w-full [&>button]:h-full [&>button]:hover:!bg-indigo-200",
                 hidden: "invisible",
                 ...classNames,
             }}
