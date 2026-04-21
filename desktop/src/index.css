@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "react-day-picker/style.css";
 
 @layer base {
     html,

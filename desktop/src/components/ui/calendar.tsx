@@ -14,25 +14,10 @@ export function Calendar({
         <DayPicker
             showOutsideDays={showOutsideDays}
             className={cn("p-3 select-none", className)}
-            style={
-                {
-                    "--rdp-accent-color": "rgb(99 102 241)",
-                    "--rdp-accent-background-color": "rgb(224 231 255)",
-                    "--rdp-day-height": "2rem",
-                    "--rdp-day-width": "2rem",
-                    "--rdp-day_button-height": "1.75rem",
-                    "--rdp-day_button-width": "1.75rem",
-                    "--rdp-day_button-border-radius": "9999px",
-                    "--rdp-day_button-border": "none",
-                    "--rdp-selected-border": "none",
-                    "--rdp-today-color": "rgb(99 102 241)",
-                } as React.CSSProperties
-            }
             classNames={{
                 months: "flex flex-col gap-4",
                 month: "flex flex-col gap-4",
-                month_caption:
-                    "flex justify-center items-center h-7 relative",
+                month_caption: "flex justify-center items-center h-7 relative",
                 caption_label: "text-sm font-medium text-zinc-800",
                 nav: "absolute inset-x-0 top-0 flex justify-between items-center h-7 px-1",
                 button_previous:
@@ -44,13 +29,27 @@ export function Calendar({
                 weekday:
                     "w-8 text-center text-[10px] font-medium text-zinc-400 pb-1",
                 week: "flex",
-                day: "text-center",
-                day_button:
-                    "text-[12px] font-medium text-zinc-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors focus:outline-none",
-                selected: "font-semibold",
-                today: "font-bold",
-                outside: "opacity-30",
-                disabled: "opacity-20 pointer-events-none",
+                // day is the cell container; button sits centered inside
+                day: "relative w-8 h-8 p-0 flex items-center justify-center",
+                day_button: cn(
+                    "relative z-10 w-6 h-6 rounded-full text-[12px] font-medium transition-colors",
+                    "text-zinc-700 hover:bg-indigo-50 hover:text-indigo-600",
+                    "focus:outline-none focus:ring-2 focus:ring-indigo-400",
+                ),
+                selected:
+                    "[&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600 [&>button]:hover:text-white",
+                today: "[&>button]:font-bold [&>button]:text-indigo-600",
+                outside:
+                    "[&>button]:text-zinc-300 [&>button]:hover:bg-transparent [&>button]:hover:text-zinc-300",
+                disabled:
+                    "[&>button]:text-zinc-200 [&>button]:pointer-events-none",
+                // bg-indigo-100 fills the full cell; rounded ends cap the pill shape.
+                range_start:
+                    "bg-indigo-100 rounded-l-full [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
+                range_end:
+                    "bg-indigo-100 rounded-r-full [&>button]:bg-indigo-500 [&>button]:text-white [&>button]:hover:bg-indigo-600",
+                range_middle:
+                    "bg-indigo-100 [&>button]:bg-transparent [&>button]:text-indigo-700 [&>button]:rounded-none [&>button]:w-full [&>button]:h-full [&>button]:hover:bg-indigo-200",
                 hidden: "invisible",
                 ...classNames,
             }}
