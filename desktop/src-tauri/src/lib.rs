@@ -212,7 +212,7 @@ pub fn run() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .title("KeliKeli")
-            .inner_size(72.0, 80.0)
+            .inner_size(50.0, 80.0)
             .resizable(false)
             .decorations(false)
             .transparent(true)
