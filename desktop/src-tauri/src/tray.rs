@@ -5,7 +5,7 @@ use tauri::{
     image::Image as TrayImage,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, Wry,
+    AppHandle, Emitter, Manager, Wry,
 };
 
 // Re-export menu item types as state wrappers so lib.rs can manage them.
