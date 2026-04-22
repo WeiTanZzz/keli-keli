@@ -1,8 +1,7 @@
 mod commands;
 mod config;
 mod hook;
-#[cfg(target_os = "macos")]
-mod macos;
+mod platform;
 mod storage;
 mod sync;
 mod tray;
@@ -118,7 +117,7 @@ async fn key_loop(
                         let app_h = app.clone();
                         let storage_h = storage.clone();
                         let _ = app.run_on_main_thread(move || {
-                            if macos::macos_confirm_quit() {
+                            if platform::macos::macos_confirm_quit() {
                                 storage_h.save();
                                 SKIP_QUIT_DIALOG.store(true, Ordering::Relaxed);
                                 app_h.exit(0);
@@ -178,7 +177,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent, // ignored on non-macOS
             None,
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -223,7 +222,7 @@ pub fn run() {
             .build()?;
 
             #[cfg(target_os = "macos")]
-            macos::make_webview_transparent(&win);
+            platform::macos::make_webview_transparent(&win);
 
             let saved_pos = cfg_for_key_loop
                 .lock()
@@ -314,7 +313,7 @@ pub fn run() {
                 }
                 #[cfg(target_os = "macos")]
                 {
-                    if !macos::macos_confirm_quit() {
+                    if !platform::macos::macos_confirm_quit() {
                         api.prevent_exit();
                         return;
                     }

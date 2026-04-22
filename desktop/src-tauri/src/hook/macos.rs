@@ -1,27 +1,8 @@
-use tokio::sync::mpsc;
+use std::os::raw::c_void;
 
-#[derive(Debug)]
-pub enum KeyEvent {
-    KeyPress {
-        app: String,
-    },
-    /// button: 0 = left, 1 = right, 2 = other/middle
-    MouseClick {
-        app: String,
-        button: u8,
-    },
-    /// Cmd+Q pressed while KeliKeli is the active app — the raw event has
-    /// already been swallowed by the tap; the receiver decides whether to quit.
-    CmdQ,
-}
+use super::{KeyEvent, SENDER};
 
-pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
-    use std::os::raw::c_void;
-    use std::sync::OnceLock;
-
-    static SENDER: OnceLock<mpsc::UnboundedSender<KeyEvent>> = OnceLock::new();
-    let _ = SENDER.set(tx);
-
+pub(super) fn start() {
     std::thread::spawn(move || {
         #[allow(non_camel_case_types)]
         type CGEventTapProxy = *mut c_void;
@@ -40,11 +21,10 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
         #[allow(non_camel_case_types)]
         type CFIndex = std::os::raw::c_long;
 
-        const KEY_DOWN: u32 = 10; // kCGEventKeyDown
-        const LEFT_MOUSE_DOWN: u32 = 1; // kCGEventLeftMouseDown
-        const RIGHT_MOUSE_DOWN: u32 = 3; // kCGEventRightMouseDown
-        const OTHER_MOUSE_DOWN: u32 = 25; // kCGEventOtherMouseDown
-                                          // The tap receives these pseudo-types when the system disables it (e.g. timeout).
+        const KEY_DOWN: u32 = 10;
+        const LEFT_MOUSE_DOWN: u32 = 1;
+        const RIGHT_MOUSE_DOWN: u32 = 3;
+        const OTHER_MOUSE_DOWN: u32 = 25;
         const TAP_DISABLED: u32 = 0xFFFFFFFE;
         const TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFFFFFF;
 
@@ -83,10 +63,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
             fn CFRunLoopRun();
             fn CFRelease(cf: *const c_void);
             static kCFRunLoopCommonModes: CFRunLoopMode;
-            /// Returns the event flags (modifier keys) for a CGEvent.
             fn CGEventGetFlags(event: CGEventRef) -> u64;
-            /// Returns an integer-valued field from a CGEvent.
-            /// Field 9 = kCGKeyboardEventKeycode.
             fn CGEventGetIntegerValueField(event: CGEventRef, field: i32) -> i64;
         }
 
@@ -151,15 +128,13 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 return event;
             }
             if event_type == KEY_DOWN {
-                // Skip key-repeat events (autorepeat field 8 = kCGKeyboardEventAutorepeat).
+                // Skip key-repeat events (field 8 = kCGKeyboardEventAutorepeat).
                 if CGEventGetIntegerValueField(event, 8) != 0 {
                     return event;
                 }
-                // kCGEventFlagMaskCommand = 0x00100000, kVK_ANSI_Q = 12
-                // Intercept Cmd+Q only when KeliKeli itself is the active app
-                // so we never accidentally swallow Cmd+Q from other apps.
+                // Intercept Cmd+Q only when KeliKeli itself is the active app.
                 let flags = CGEventGetFlags(event);
-                let keycode = CGEventGetIntegerValueField(event, 9); // kCGKeyboardEventKeycode
+                let keycode = CGEventGetIntegerValueField(event, 9);
                 if (flags & 0x00100000) != 0 && keycode == 12 {
                     use objc::runtime::{Class, Object};
                     use objc::{msg_send, sel, sel_impl};
@@ -173,8 +148,6 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                         if let Some(tx) = SENDER.get() {
                             let _ = tx.send(KeyEvent::CmdQ);
                         }
-                        // Return null to swallow the event — our handler will
-                        // decide whether to quit or cancel.
                         return std::ptr::null_mut();
                     }
                 }
@@ -191,7 +164,7 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     let button = match event_type {
                         LEFT_MOUSE_DOWN => 0,
                         RIGHT_MOUSE_DOWN => 1,
-                        _ => 2, // OTHER_MOUSE_DOWN
+                        _ => 2,
                     };
                     let _ = tx.send(KeyEvent::MouseClick { app, button });
                 }
@@ -215,8 +188,6 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                     continue;
                 }
 
-                // Release the previous tap port before overwriting, so we don't
-                // leak CFMachPortRef objects if CFRunLoopRun() ever returns.
                 let old = TAP_PORT.swap(tap, std::sync::atomic::Ordering::Relaxed);
                 if !old.is_null() {
                     CFRelease(old);
@@ -229,7 +200,6 @@ pub fn start(tx: mpsc::UnboundedSender<KeyEvent>) {
                 }
                 let rl = CFRunLoopGetCurrent();
                 CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
-                // Release our source reference — the run loop holds its own retain.
                 CFRelease(source);
                 CGEventTapEnable(tap, true);
                 CFRunLoopRun();
