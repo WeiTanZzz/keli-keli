@@ -1,6 +1,6 @@
 [package]
 name = "keli-keli"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 description = "A lightweight keystroke counting tool"
 
