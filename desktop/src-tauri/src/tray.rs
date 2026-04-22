@@ -113,16 +113,13 @@ pub(crate) fn open_settings_window_at(app: &AppHandle, tab: Option<&str>) {
         None => "index.html".to_string(),
     };
 
-    let mut builder = tauri::WebviewWindowBuilder::new(
-        app,
-        "settings",
-        tauri::WebviewUrl::App(url.into()),
-    )
-    .title("KeliKeli Settings")
-    .inner_size(660.0, 556.0)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true);
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(app, "settings", tauri::WebviewUrl::App(url.into()))
+            .title("KeliKeli Settings")
+            .inner_size(660.0, 556.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true);
 
     if let Some((x, y)) = settings_position(app) {
         builder = builder.position(x, y);
