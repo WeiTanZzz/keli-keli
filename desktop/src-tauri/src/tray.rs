@@ -98,24 +98,61 @@ pub(crate) fn open_settings_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("settings") {
         win.show().ok();
         win.set_focus().ok();
-    } else {
-        if let Ok(win) = tauri::WebviewWindowBuilder::new(
-            app,
-            "settings",
-            tauri::WebviewUrl::App("index.html".into()),
-        )
-        .title("KeliKeli Settings")
-        .inner_size(660.0, 556.0)
-        .resizable(false)
-        .decorations(false)
-        .transparent(true)
-        .center()
-        .build()
-        {
-            #[cfg(target_os = "macos")]
-            crate::platform::macos::setup_settings_window_rounded(&win);
-        }
+        return;
     }
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        app,
+        "settings",
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("KeliKeli Settings")
+    .inner_size(660.0, 556.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true);
+
+    if let Some((x, y)) = settings_position(app) {
+        builder = builder.position(x, y);
+    } else {
+        builder = builder.center();
+    }
+
+    if let Ok(win) = builder.build() {
+        #[cfg(target_os = "macos")]
+        crate::platform::macos::setup_settings_window_rounded(&win);
+    }
+}
+
+fn settings_position(app: &AppHandle) -> Option<(f64, f64)> {
+    let main_win = app.get_webview_window("main")?;
+    let cursor = main_win.cursor_position().ok()?;
+    let monitors = main_win.available_monitors().ok()?;
+
+    let monitor = monitors.iter().find(|m| {
+        let o = m.position();
+        let s = m.size();
+        cursor.x as i32 >= o.x
+            && cursor.y as i32 >= o.y
+            && (cursor.x as i32) < o.x + s.width as i32
+            && (cursor.y as i32) < o.y + s.height as i32
+    })?;
+
+    let scale = monitor.scale_factor();
+    let mo = monitor.position();
+    let ms = monitor.size();
+    let logical_origin_x = mo.x as f64 / scale;
+    let logical_origin_y = mo.y as f64 / scale;
+    let logical_w = ms.width as f64 / scale;
+    let logical_h = ms.height as f64 / scale;
+
+    let win_w = 660.0_f64;
+    let win_h = 556.0_f64;
+
+    Some((
+        logical_origin_x + (logical_w - win_w) / 2.0,
+        logical_origin_y + (logical_h - win_h) / 2.0,
+    ))
 }
 
 fn build_tray_icon() -> TrayImage<'static> {
