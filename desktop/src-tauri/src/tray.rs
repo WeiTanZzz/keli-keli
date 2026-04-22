@@ -5,7 +5,7 @@ use tauri::{
     image::Image as TrayImage,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, Wry,
+    AppHandle, Emitter, Manager, Wry,
 };
 
 // Re-export menu item types as state wrappers so lib.rs can manage them.
@@ -95,22 +95,31 @@ pub(crate) fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
 }
 
 pub(crate) fn open_settings_window(app: &AppHandle) {
+    open_settings_window_at(app, None);
+}
+
+pub(crate) fn open_settings_window_at(app: &AppHandle, tab: Option<&str>) {
     if let Some(win) = app.get_webview_window("settings") {
         win.show().ok();
         win.set_focus().ok();
+        if let Some(tab) = tab {
+            app.emit_to("settings", "navigate_to", tab).ok();
+        }
         return;
     }
 
-    let mut builder = tauri::WebviewWindowBuilder::new(
-        app,
-        "settings",
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("KeliKeli Settings")
-    .inner_size(660.0, 556.0)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true);
+    let url = match tab {
+        Some(tab) => format!("index.html#{tab}"),
+        None => "index.html".to_string(),
+    };
+
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(app, "settings", tauri::WebviewUrl::App(url.into()))
+            .title("KeliKeli Settings")
+            .inner_size(660.0, 556.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true);
 
     if let Some((x, y)) = settings_position(app) {
         builder = builder.position(x, y);

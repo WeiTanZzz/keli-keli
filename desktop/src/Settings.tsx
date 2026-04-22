@@ -100,7 +100,12 @@ export default function Settings() {
     const [saved, setSaved] = useState(false)
     const [showRestartDialog, setShowRestartDialog] = useState(false)
     const [update, setUpdate] = useState<UpdateState>({ status: "checking" })
-    const [active, setActive] = useState<NavId>("statistics")
+    const [active, setActive] = useState<NavId>(() => {
+        const hash = window.location.hash.slice(1)
+        return NAV_ITEMS.some((item) => item.id === hash)
+            ? (hash as NavId)
+            : "statistics"
+    })
     const [theme, setThemeState] = useState<Theme>(getTheme)
 
     useEffect(() => {
@@ -222,10 +227,17 @@ export default function Settings() {
             },
         )
 
+        const unlistenNav = listen<string>("navigate_to", (e) => {
+            if (NAV_ITEMS.some((item) => item.id === e.payload)) {
+                setActive(e.payload as NavId)
+            }
+        })
+
         return () => {
             unlisten.then((f) => f())
             unlistenClick.then((f) => f())
             unlistenUpdate.then((f) => f())
+            unlistenNav.then((f) => f())
         }
     }, [])
 
