@@ -117,6 +117,7 @@ jobs:
               run: |
                   echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
                   security create-keychain -p "" build.keychain
+                  security set-keychain-settings -t 7200 -u build.keychain
                   security default-keychain -s build.keychain
                   security unlock-keychain -p "" build.keychain
                   security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -126,13 +127,6 @@ jobs:
               env:
                   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-
-            - name: Wrap codesign to skip timestamp server
-              run: |
-                  mkdir -p /tmp/codesign-wrap
-                  printf '#!/bin/sh\nexec /usr/bin/codesign --timestamp=none "$@"\n' > /tmp/codesign-wrap/codesign
-                  chmod +x /tmp/codesign-wrap/codesign
-                  echo "/tmp/codesign-wrap" >> "$GITHUB_PATH"
 
             - uses: tauri-apps/tauri-action@v0.6.2
               env:
