@@ -120,7 +120,7 @@ fn show_alert(app: &AppHandle, title: &str, message: &str) {
 #[cfg(target_os = "macos")]
 fn show_update_prompt(app: &AppHandle, version: &str) {
     use crate::platform::macos::{ns_string, NS_ALERT_FIRST_BUTTON};
-    use crate::tray::open_settings_window;
+    use crate::tray::open_settings_window_at;
     use objc::runtime::{Class, Object, YES};
     use objc::{msg_send, sel, sel_impl};
     let app_handle = app.clone();
@@ -148,7 +148,7 @@ fn show_update_prompt(app: &AppHandle, version: &str) {
 
         let response: i64 = msg_send![alert, runModal];
         if response == NS_ALERT_FIRST_BUTTON {
-            open_settings_window(&app_handle);
+            open_settings_window_at(&app_handle, Some("about"));
         }
     });
 }
