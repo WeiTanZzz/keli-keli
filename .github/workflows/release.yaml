@@ -117,6 +117,7 @@ jobs:
               run: |
                   echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
                   security create-keychain -p "" build.keychain
+                  security set-keychain-settings -t 7200 -u build.keychain
                   security default-keychain -s build.keychain
                   security unlock-keychain -p "" build.keychain
                   security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
