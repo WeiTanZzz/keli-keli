@@ -22,7 +22,7 @@
 
 **KeliKeli** floats a live indicator on your screen with every keystroke and click — and quietly builds a picture of how you actually work.
 
-<img src="https://github.com/user-attachments/assets/9b6c21f9-e1d4-4a93-a33b-0f16566ed54f" alt="KeliKeli demo" width="100%" />
+<img src="https://github.com/user-attachments/assets/c8857302-1604-42a1-b9b9-59d3be7e2321" alt="KeliKeli demo" width="100%" />
 
 ## Download 📦
 
